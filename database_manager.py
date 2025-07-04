@@ -5,7 +5,7 @@ from datetime import date
 import settings
 
 
-def get_db_connection():
+def get_db_connection() -> sqlite3.Connection:
     """Создает и возвращает соединение с базой данных SQLite."""
     conn = sqlite3.connect(settings.DB_FILE)
     # Позволяет обращаться к колонкам по имени, что удобнее, чем по индексу
@@ -13,7 +13,7 @@ def get_db_connection():
     return conn
 
 
-def initialize_database():
+def initialize_database() -> None:
     """
     Инициализирует базу данных: создает таблицы, если они не существуют,
     и заполняет начальные значения статистики.
@@ -97,7 +97,7 @@ def get_stats() -> dict:
         return stats
 
 
-def save_stats(stats: dict):
+def save_stats(stats: dict) -> None:
     """Сохраняет словарь со статистикой в БД."""
     with get_db_connection() as conn:
         for key, value in stats.items():

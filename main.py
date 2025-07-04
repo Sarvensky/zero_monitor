@@ -12,12 +12,12 @@ import api_client
 import database_manager as db  # Используем новый модуль для работы с БД
 
 
-def now_datetime():
+def now_datetime() -> str:
     """Возвращает текущую дату и время в отформатированной строке."""
     return datetime.now().strftime("Дата и время сейчас: %Y-%m-%d %H:%M:%S")
 
 
-def get_seconds_since(last_online, time_ms):
+def get_seconds_since(last_online, time_ms) -> int:
     """
     Вычисляет разницу в секундах между текущим временем (time_ms)
     и временем последнего онлайна (last_online).
@@ -28,7 +28,7 @@ def get_seconds_since(last_online, time_ms):
     return int(diff_seconds)
 
 
-def main(statistics: dict):
+def main(statistics: dict) -> None:
     """Основная функция для запуска мониторинга ZeroTier."""
     print(now_datetime())
 

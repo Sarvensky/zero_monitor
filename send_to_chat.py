@@ -45,7 +45,7 @@ def report_findings(problem_reports: list[str], stats: dict):
     stats["problems_today"] += len(problem_reports)
 
     print("\n--- Обнаружены проблемы ---")
-    alert_message = "Обнаружены проблемы с клиентами ZeroTier:\n\n" + "\n".join(
+    alert_message = "🔎 Обнаружены проблемы с клиентами ZeroTier:\n\n" + "\n".join(
         problem_reports
     )
     print(alert_message)
