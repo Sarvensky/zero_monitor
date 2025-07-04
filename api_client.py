@@ -1,7 +1,12 @@
-import requests
-from send_to_chat import send_telegram_alert
-import settings
+"""
+Модуль для взаимодействия с API ZeroTier и получения информации о членах сетей, а также о последней версии ZeroTier.
+Содержит функции с поддержкой повторных попыток и уведомлений в случае ошибок.
+"""
+
 import time
+import requests
+import settings
+from send_to_chat import send_telegram_alert
 
 
 def get_members(token: str, network_id: str) -> list | None:
@@ -18,7 +23,8 @@ def get_members(token: str, network_id: str) -> list | None:
         except requests.RequestException as e:
             last_error = e
             print(
-                f"Попытка {attempt + 1}/{settings.API_RETRY_ATTEMPTS}: Ошибка при получении участников сети {network_id}: {e}"
+                f"Попытка {attempt + 1}/{settings.API_RETRY_ATTEMPTS}: "
+                f"Ошибка при получении участников сети {network_id}: {e}"
             )
             if attempt < settings.API_RETRY_ATTEMPTS - 1:
                 print(
@@ -29,7 +35,10 @@ def get_members(token: str, network_id: str) -> list | None:
                 print("Все попытки исчерпаны.")
     # Отправляем уведомление только после того, как все попытки провалились
     if last_error:
-        error_message = f"⛔ Не удалось получить участников сети {network_id} после {settings.API_RETRY_ATTEMPTS} попыток. Последняя ошибка: {last_error}"
+        error_message = (
+            f"⛔ Не удалось получить участников сети {network_id} после "
+            f"{settings.API_RETRY_ATTEMPTS} попыток. Последняя ошибка: {last_error}"
+        )
         send_telegram_alert(error_message)
     return None
 
@@ -80,7 +89,10 @@ def get_latest_zerotier_version() -> str:
                 print("Все попытки исчерпаны.")
     # Отправляем уведомление только после того, как все попытки провалились
     if last_error:
-        error_message = f"⛔ Не удалось получить последнюю версию ZeroTier после {settings.API_RETRY_ATTEMPTS} попыток. Последняя ошибка: {last_error}"
+        error_message = (
+            f"⛔ Не удалось получить последнюю версию ZeroTier после "
+            f"{settings.API_RETRY_ATTEMPTS} попыток. Последняя ошибка: {last_error}"
+        )
         send_telegram_alert(error_message)
     print(f"Используется версия по умолчанию: {fallback_version}")
     return fallback_version

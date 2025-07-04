@@ -1,3 +1,5 @@
+"""Модуль с настройками и конфигурацией для мониторинга ZeroTier."""
+
 import os
 import json
 import time
@@ -72,7 +74,7 @@ ONLINE_THRESHOLD_SECONDS = OFFLINE_THRESHOLDS["5m"]["seconds"]
 
 # Интервал проверки
 try:
-    CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", 300))
+    CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "300"))
     if CHECK_INTERVAL_SECONDS <= 0:
         print(
             "Интервал проверки должен быть положительным числом. Используется значение по умолчанию: 300 секунд."

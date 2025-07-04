@@ -1,6 +1,8 @@
+"""Модуль для отправки уведомлений и отчетов о состоянии ZeroTier в Telegram."""
+
+from datetime import date
 import requests
 import settings
-from datetime import date
 
 
 def send_telegram_alert(message: str) -> None:

@@ -1,3 +1,5 @@
+"""Модуль для загрузки и сохранения состояния и статистики мониторинга ZeroTier."""
+
 import os
 import json
 from datetime import date
