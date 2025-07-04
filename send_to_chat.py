@@ -1,12 +1,13 @@
 """Модуль для отправки уведомлений и отчетов о состоянии ZeroTier в Telegram."""
 
 from datetime import date
+import time
 import requests
 import settings
 
 
 def send_telegram_alert(message: str) -> None:
-    """Отправляет сообщение в Telegram, используя настройки из settings.py."""
+    """Отправляет сообщение в Telegram с несколькими попытками в случае сбоя."""
     if not settings.BOT_TOKEN or not settings.CHAT_ID:
         print("Отправка в Telegram пропущена: BOT_TOKEN или CHAT_ID не настроены.")
         return
@@ -14,13 +15,25 @@ def send_telegram_alert(message: str) -> None:
     url = f"https://api.telegram.org/bot{settings.BOT_TOKEN}/sendMessage"
     payload = {"chat_id": settings.CHAT_ID, "text": message}
 
-    try:
-        # Добавляем таймаут для предотвращения "зависания" скрипта
-        response = requests.post(url, json=payload, timeout=10)
-        response.raise_for_status()
-        print("Уведомление успешно отправлено.")
-    except requests.exceptions.RequestException as e:
-        print(f"Ошибка при отправке уведомления: {e}")
+    for attempt in range(settings.API_RETRY_ATTEMPTS):
+        try:
+            # Добавляем таймаут для предотвращения "зависания" скрипта
+            response = requests.post(url, json=payload, timeout=10)
+            response.raise_for_status()
+            print("Уведомление успешно отправлено.")
+            return  # Выходим из функции при успехе
+        except requests.exceptions.RequestException as e:
+            print(
+                f"Попытка {attempt + 1}/{settings.API_RETRY_ATTEMPTS}: "
+                f"Ошибка при отправке уведомления в Telegram: {e}"
+            )
+            if attempt < settings.API_RETRY_ATTEMPTS - 1:
+                print(
+                    f"Повторная попытка через {settings.API_RETRY_DELAY_SECONDS} сек..."
+                )
+                time.sleep(settings.API_RETRY_DELAY_SECONDS)
+            else:
+                print("Все попытки отправки уведомления исчерпаны.")
 
 
 def report_findings(problem_reports: list[str], stats: dict):
