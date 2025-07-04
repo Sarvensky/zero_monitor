@@ -1,0 +1,106 @@
+"""Модуль для управления состоянием и статистикой в базе данных SQLite."""
+
+import sqlite3
+from datetime import date
+import settings
+
+
+def get_db_connection():
+    """Создает и возвращает соединение с базой данных SQLite."""
+    conn = sqlite3.connect(settings.DB_FILE)
+    # Позволяет обращаться к колонкам по имени, что удобнее, чем по индексу
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def initialize_database():
+    """
+    Инициализирует базу данных: создает таблицы, если они не существуют,
+    и заполняет начальные значения статистики.
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Таблица для хранения состояния каждого отслеживаемого участника
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS member_states (
+            node_id TEXT PRIMARY KEY,
+            name TEXT,
+            version_alert_sent BOOLEAN DEFAULT FALSE,
+            offline_alert_level INTEGER DEFAULT 0
+        )
+        """
+        )
+
+        # Таблица для хранения общей статистики работы скрипта (ключ-значение)
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS script_stats (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+        """
+        )
+
+        # Инициализация статистики, если она еще не задана
+        # INSERT OR IGNORE не будет ничего делать, если ключ уже существует
+        today_str = str(date.today())
+        initial_stats = [
+            ("last_report_date", today_str),
+            ("checks_today", "0"),
+            ("problems_today", "0"),
+        ]
+        cursor.executemany(
+            "INSERT OR IGNORE INTO script_stats (key, value) VALUES (?, ?)",
+            initial_stats,
+        )
+        print("База данных инициализирована.")
+
+
+def get_member_state(node_id: str) -> sqlite3.Row | None:
+    """Получает состояние для одного участника из БД."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM member_states WHERE node_id = ?", (node_id,))
+        return cursor.fetchone()
+
+
+def update_member_state(
+    node_id: str, name: str, version_alert_sent: bool, offline_alert_level: int
+):
+    """Обновляет или вставляет состояние участника в БД."""
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+        INSERT INTO member_states (node_id, name, version_alert_sent, offline_alert_level)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(node_id) DO UPDATE SET
+            name=excluded.name,
+            version_alert_sent=excluded.version_alert_sent,
+            offline_alert_level=excluded.offline_alert_level
+        """,
+            (node_id, name, version_alert_sent, offline_alert_level),
+        )
+
+
+def get_stats() -> dict:
+    """Загружает всю статистику из БД в виде словаря."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM script_stats")
+        rows = cursor.fetchall()
+        stats = {row["key"]: row["value"] for row in rows}
+        # Преобразуем числовые значения в int для удобства использования
+        stats["checks_today"] = int(stats.get("checks_today", 0))
+        stats["problems_today"] = int(stats.get("problems_today", 0))
+        return stats
+
+
+def save_stats(stats: dict):
+    """Сохраняет словарь со статистикой в БД."""
+    with get_db_connection() as conn:
+        for key, value in stats.items():
+            conn.execute(
+                "UPDATE script_stats SET value = ? WHERE key = ?", (str(value), key)
+            )

@@ -57,8 +57,7 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # --- Конфигурация файлов, порогов и интервалов ---
-STATE_FILE = "alert_state.json"
-STATS_FILE = "daily_stats.json"
+DB_FILE = "monitor_state.db"  # Файл базы данных SQLite
 
 # Уровни оповещений об офлайне.
 OFFLINE_THRESHOLDS = {
