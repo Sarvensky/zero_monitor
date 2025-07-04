@@ -1,3 +1,5 @@
+"""Модуль для мониторинга состояния устройств в сетях ZeroTier."""
+
 import time
 import json
 from datetime import datetime, date
@@ -68,11 +70,11 @@ def check_member_status(member, latest_version, time_ms, offline_threshold_sec=3
     return info_string, problems
 
 
-def main(stats: dict):
+def main(statistics: dict):
     """Основная функция для запуска мониторинга ZeroTier."""
     print(now_datetime())
 
-    stats["checks_today"] += 1
+    statistics["checks_today"] += 1
     time_ms = int(datetime.now().timestamp() * 1000)
 
     # Загружаем предыдущее состояние оповещений
@@ -183,7 +185,7 @@ def main(stats: dict):
         )
 
     if problem_reports:
-        report_findings(problem_reports, stats)
+        report_findings(problem_reports, statistics)
     else:
         print("\nНовых проблем или изменений статуса не обнаружено.")
 
@@ -232,7 +234,7 @@ if __name__ == "__main__":
 
         try:
             main(stats)
-        except Exception as e:
+        except ValueError as e:
             # Логируем непредвиденную ошибку, чтобы скрипт не падал
             print(f"\n--- Произошла непредвиденная ошибка: {e} ---")
 
