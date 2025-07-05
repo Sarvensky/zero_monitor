@@ -65,10 +65,14 @@ def main(statistics: dict) -> None:
         previous_alert_level = (
             previous_state["offline_alert_level"] if previous_state else 0
         )
+        previous_problems_count = (
+            previous_state["problems_count"] if previous_state else 0
+        )
 
         # 2. Инициализируем новое состояние на основе предыдущего
         new_version_alert_sent = was_version_alert_sent
         new_offline_alert_level = previous_alert_level
+        new_problems_count = previous_problems_count
 
         # --- 3. Проверка версии ---
         client_version = member.get("clientVersion", "N/A").lstrip("v")
@@ -78,10 +82,11 @@ def main(statistics: dict) -> None:
         if not is_version_ok and client_version != "N/A":
             if not was_version_alert_sent:
                 problem_reports.append(f"🔧 {name}: старая версия ({client_version})")
+                new_problems_count += 1
                 new_version_alert_sent = True
-        elif was_version_alert_sent:
+        elif was_version_alert_sent and is_version_ok:
             problem_reports.append(
-                f"✅ {name}: версия обновлена до актуальной ({client_version})."
+                f"✅ {name}: версия обновлена до актуальной ({client_version})"
             )
             new_version_alert_sent = False
 
@@ -121,12 +126,14 @@ def main(statistics: dict) -> None:
                         ].format(name=name)
                         problem_reports.append(message)
                         new_offline_alert_level = new_alert_level
+                        new_problems_count += 1
         else:
             last_online_str = "N/A"
             if (
                 not previous_state
             ):  # Отправляем только один раз, если устройства нет в БД
                 problem_reports.append(f"❓ {name}: ни разу не был в сети.")
+                new_problems_count += 1
 
         print(
             f"ID: {node_id}, Имя: {name}, Версия: {client_version or 'N/A'} [{version_status}], Онлайн: {last_online_str}"
@@ -134,7 +141,12 @@ def main(statistics: dict) -> None:
 
         # 5. Сохраняем итоговое новое состояние в БД для этого участника
         db.update_member_state(
-            node_id, name, new_version_alert_sent, new_offline_alert_level, seconds_ago
+            node_id,
+            name,
+            new_version_alert_sent,
+            new_offline_alert_level,
+            seconds_ago,
+            new_problems_count,
         )
 
     if problem_reports:
@@ -151,18 +163,19 @@ if __name__ == "__main__":
 
     # Загрузка статистики из БД
     stats = db.get_stats()
+    # Безопасно получаем и проверяем дату последнего отчета
     try:
-        # Преобразуем строку с датой в объект date для корректного сравнения
-        last_report_date = date.fromisoformat(stats["last_report_date"])
-    except (ValueError, TypeError, KeyError):
-        # Если дата некорректна, отсутствует или неверного формата
+        last_report_date_str = stats.get("last_report_date")
+        if not last_report_date_str:
+            # Это условие сработает, если ключ отсутствует или значение None/пустая строка
+            raise ValueError("Дата последнего отчета отсутствует или пуста.")
+        last_report_date = date.fromisoformat(last_report_date_str)
+    except (ValueError, TypeError):
+        # Если дата некорректна, отсутствует или неверного формата,
+        # устанавливаем текущую дату и обновляем ее в словаре, не сбрасывая другие счетчики.
+        print("Некорректная дата последнего отчета в БД. Используется текущая дата.")
         last_report_date = date.today()
-        stats = {
-            "last_report_date": str(last_report_date),
-            "checks_today": 0,
-            "problems_today": 0,
-            "last_check_datetime": "н/д",
-        }
+        stats["last_report_date"] = str(last_report_date)
 
     while True:
         current_date = date.today()
@@ -172,13 +185,15 @@ if __name__ == "__main__":
             print(
                 f"\n--- Наступил новый день ({current_date}). Отправка отчета за {last_report_date}. ---"
             )
-            send_daily_report(stats)
+            problematic_members = db.get_problematic_members()
+            send_daily_report(stats, problematic_members)
 
             # Сброс статистики для нового дня
             last_report_date = current_date
             stats["last_report_date"] = str(current_date)
             stats["checks_today"] = 0
             stats["problems_today"] = 0
+            db.reset_daily_problem_counts()
 
         try:
             main(stats)

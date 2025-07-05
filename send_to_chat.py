@@ -54,7 +54,7 @@ def report_findings(problem_reports: list[str], stats: dict):
     send_telegram_alert(alert_message)
 
 
-def send_daily_report(stats: dict):
+def send_daily_report(stats: dict, problematic_members: list):
     """Отправляет ежедневный отчет о работе скрипта и статистике."""
     report_date = stats.get("last_report_date", str(date.today()))
     last_check = stats.get("last_check_datetime", "н/д")
@@ -65,6 +65,15 @@ def send_daily_report(stats: dict):
         f"⚠️ Выявлено инцидентов: {stats.get('problems_today', 0)}\n"
         f"🕒 Последняя проверка: {last_check}"
     )
+
+    if problematic_members:
+        problem_details = "\n\n📊 Статистика по узлам с проблемами:"
+        for member in problematic_members:
+            problem_details += (
+                f"\n  - {member['name']}: {member['problems_count']} инцидентов"
+            )
+        message += problem_details
+
     print("\n--- Отправка ежедневного отчета ---")
     print(message)
     send_telegram_alert(message)
