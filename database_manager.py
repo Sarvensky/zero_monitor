@@ -28,10 +28,34 @@ def initialize_database() -> None:
             node_id TEXT PRIMARY KEY,
             name TEXT,
             version_alert_sent BOOLEAN DEFAULT FALSE,
-            offline_alert_level INTEGER DEFAULT 0
+            offline_alert_level INTEGER DEFAULT 0,
+            last_seen_seconds_ago INTEGER DEFAULT -1,
+            problems_count INTEGER DEFAULT 0
         )
         """
         )
+
+        # Для обратной совместимости с базами, созданными до этого изменения,
+        # попробуем добавить столбец, если он отсутствует.
+        try:
+            cursor.execute(
+                "ALTER TABLE member_states ADD COLUMN last_seen_seconds_ago INTEGER DEFAULT -1"
+            )
+            print("Столбец 'last_seen_seconds_ago' добавлен в таблицу 'member_states'.")
+        except sqlite3.OperationalError as e:
+            # Игнорируем ошибку, если столбец уже существует.
+            # Сообщение об ошибке может отличаться в разных версиях SQLite.
+            if "duplicate column name" not in str(e).lower():
+                raise
+
+        try:
+            cursor.execute(
+                "ALTER TABLE member_states ADD COLUMN problems_count INTEGER DEFAULT 0"
+            )
+            print("Столбец 'problems_count' добавлен в таблицу 'member_states'.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e).lower():
+                raise
 
         # Таблица для хранения общей статистики работы скрипта (ключ-значение)
         cursor.execute(
@@ -50,6 +74,7 @@ def initialize_database() -> None:
             ("last_report_date", today_str),
             ("checks_today", "0"),
             ("problems_today", "0"),
+            ("last_check_datetime", "н/д"),  # н/д - нет данных
         ]
         cursor.executemany(
             "INSERT OR IGNORE INTO script_stats (key, value) VALUES (?, ?)",
@@ -67,20 +92,34 @@ def get_member_state(node_id: str) -> sqlite3.Row | None:
 
 
 def update_member_state(
-    node_id: str, name: str, version_alert_sent: bool, offline_alert_level: int
+    node_id: str,
+    name: str,
+    version_alert_sent: bool,
+    offline_alert_level: int,
+    last_seen_seconds_ago: int,
+    problems_count: int,
 ):
     """Обновляет или вставляет состояние участника в БД."""
     with get_db_connection() as conn:
         conn.execute(
             """
-        INSERT INTO member_states (node_id, name, version_alert_sent, offline_alert_level)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO member_states (node_id, name, version_alert_sent, offline_alert_level, last_seen_seconds_ago, problems_count)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(node_id) DO UPDATE SET
             name=excluded.name,
             version_alert_sent=excluded.version_alert_sent,
-            offline_alert_level=excluded.offline_alert_level
+            offline_alert_level=excluded.offline_alert_level,
+            last_seen_seconds_ago=excluded.last_seen_seconds_ago,
+            problems_count=excluded.problems_count
         """,
-            (node_id, name, version_alert_sent, offline_alert_level),
+            (
+                node_id,
+                name,
+                version_alert_sent,
+                offline_alert_level,
+                last_seen_seconds_ago,
+                problems_count,
+            ),
         )
 
 
@@ -104,3 +143,24 @@ def save_stats(stats: dict) -> None:
             conn.execute(
                 "UPDATE script_stats SET value = ? WHERE key = ?", (str(value), key)
             )
+
+
+def get_problematic_members() -> list[sqlite3.Row]:
+    """Возвращает список участников, у которых были проблемы за день."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT name, problems_count FROM member_states
+            WHERE problems_count > 0
+            ORDER BY problems_count DESC
+            """
+        )
+        return cursor.fetchall()
+
+
+def reset_daily_problem_counts() -> None:
+    """Сбрасывает счетчик дневных проблем для всех участников."""
+    with get_db_connection() as conn:
+        conn.execute("UPDATE member_states SET problems_count = 0")
+        print("Счетчики проблем для всех узлов сброшены.")
