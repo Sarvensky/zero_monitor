@@ -50,6 +50,7 @@ def initialize_database() -> None:
             ("last_report_date", today_str),
             ("checks_today", "0"),
             ("problems_today", "0"),
+            ("last_check_datetime", "н/д"),  # н/д - нет данных
         ]
         cursor.executemany(
             "INSERT OR IGNORE INTO script_stats (key, value) VALUES (?, ?)",

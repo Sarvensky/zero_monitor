@@ -13,8 +13,8 @@ import database_manager as db  # Используем новый модуль д
 
 
 def now_datetime() -> str:
-    """Возвращает текущую дату и время в отформатированной строке."""
-    return datetime.now().strftime("Дата и время сейчас: %Y-%m-%d %H:%M:%S")
+    """Возвращает текущую дату и время в строке формата YYYY-MM-DD HH:MM:SS."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_seconds_since(last_online, time_ms) -> int:
@@ -30,9 +30,12 @@ def get_seconds_since(last_online, time_ms) -> int:
 
 def main(statistics: dict) -> None:
     """Основная функция для запуска мониторинга ZeroTier."""
-    print(now_datetime())
+    check_time_str = now_datetime()
+    print(f"Дата и время сейчас: {check_time_str}")
 
     statistics["checks_today"] += 1
+    # Сохраняем точное время последней проверки
+    statistics["last_check_datetime"] = check_time_str
     time_ms = int(datetime.now().timestamp() * 1000)
 
     latest_version = api_client.get_latest_zerotier_version()
@@ -157,6 +160,7 @@ if __name__ == "__main__":
             "last_report_date": str(last_report_date),
             "checks_today": 0,
             "problems_today": 0,
+            "last_check_datetime": "н/д",
         }
 
     while True:

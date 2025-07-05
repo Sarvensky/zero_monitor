@@ -57,11 +57,13 @@ def report_findings(problem_reports: list[str], stats: dict):
 def send_daily_report(stats: dict):
     """Отправляет ежедневный отчет о работе скрипта и статистике."""
     report_date = stats.get("last_report_date", str(date.today()))
+    last_check = stats.get("last_check_datetime", "н/д")
     message = (
         f"🌙 Ежедневный отчет за {report_date}:\n\n"
         f"✅ Скрипт мониторинга ZeroTier работает в штатном режиме.\n"
         f"📈 Проверок за день: {stats.get('checks_today', 0)}\n"
-        f"⚠️ Выявлено инцидентов: {stats.get('problems_today', 0)}"
+        f"⚠️ Выявлено инцидентов: {stats.get('problems_today', 0)}\n"
+        f"🕒 Последняя проверка: {last_check}"
     )
     print("\n--- Отправка ежедневного отчета ---")
     print(message)
