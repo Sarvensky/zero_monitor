@@ -88,6 +88,7 @@ def main(statistics: dict) -> None:
         # --- 4. Проверка онлайн-статуса ---
         last_online_ts = member.get("lastSeen")
         last_online_str = "N/A"
+        seconds_ago = -1  # Значение по умолчанию, если узел никогда не был в сети
 
         if last_online_ts:
             seconds_ago = get_seconds_since(last_online_ts, time_ms)
@@ -133,7 +134,7 @@ def main(statistics: dict) -> None:
 
         # 5. Сохраняем итоговое новое состояние в БД для этого участника
         db.update_member_state(
-            node_id, name, new_version_alert_sent, new_offline_alert_level
+            node_id, name, new_version_alert_sent, new_offline_alert_level, seconds_ago
         )
 
     if problem_reports:

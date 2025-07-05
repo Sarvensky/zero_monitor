@@ -28,10 +28,24 @@ def initialize_database() -> None:
             node_id TEXT PRIMARY KEY,
             name TEXT,
             version_alert_sent BOOLEAN DEFAULT FALSE,
-            offline_alert_level INTEGER DEFAULT 0
+            offline_alert_level INTEGER DEFAULT 0,
+            last_seen_seconds_ago INTEGER DEFAULT -1
         )
         """
         )
+
+        # Для обратной совместимости с базами, созданными до этого изменения,
+        # попробуем добавить столбец, если он отсутствует.
+        try:
+            cursor.execute(
+                "ALTER TABLE member_states ADD COLUMN last_seen_seconds_ago INTEGER DEFAULT -1"
+            )
+            print("Столбец 'last_seen_seconds_ago' добавлен в таблицу 'member_states'.")
+        except sqlite3.OperationalError as e:
+            # Игнорируем ошибку, если столбец уже существует.
+            # Сообщение об ошибке может отличаться в разных версиях SQLite.
+            if "duplicate column name" not in str(e).lower():
+                raise
 
         # Таблица для хранения общей статистики работы скрипта (ключ-значение)
         cursor.execute(
@@ -68,20 +82,31 @@ def get_member_state(node_id: str) -> sqlite3.Row | None:
 
 
 def update_member_state(
-    node_id: str, name: str, version_alert_sent: bool, offline_alert_level: int
+    node_id: str,
+    name: str,
+    version_alert_sent: bool,
+    offline_alert_level: int,
+    last_seen_seconds_ago: int,
 ):
     """Обновляет или вставляет состояние участника в БД."""
     with get_db_connection() as conn:
         conn.execute(
             """
-        INSERT INTO member_states (node_id, name, version_alert_sent, offline_alert_level)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO member_states (node_id, name, version_alert_sent, offline_alert_level, last_seen_seconds_ago)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(node_id) DO UPDATE SET
             name=excluded.name,
             version_alert_sent=excluded.version_alert_sent,
-            offline_alert_level=excluded.offline_alert_level
+            offline_alert_level=excluded.offline_alert_level,
+            last_seen_seconds_ago=excluded.last_seen_seconds_ago
         """,
-            (node_id, name, version_alert_sent, offline_alert_level),
+            (
+                node_id,
+                name,
+                version_alert_sent,
+                offline_alert_level,
+                last_seen_seconds_ago,
+            ),
         )
 
 
