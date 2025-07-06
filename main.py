@@ -1,7 +1,7 @@
 """Модуль для мониторинга состояния устройств в сетях ZeroTier."""
 
 import time
-from datetime import datetime, date
+from datetime import date, datetime
 from send_to_chat import (
     report_findings,
     send_daily_report,
@@ -10,26 +10,160 @@ from send_to_chat import (
 import settings
 import api_client
 import database_manager as db  # Используем новый модуль для работы с БД
+from utils import get_seconds_since, now_datetime
 
 
-def now_datetime() -> str:
-    """Возвращает текущую дату и время в строке формата YYYY-MM-DD HH:MM:SS."""
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def _check_member_version(
+    name: str,
+    client_version: str,
+    latest_version: str,
+    was_version_alert_sent: bool,
+) -> tuple[str | None, bool]:
+    """Проверяет версию клиента и формирует отчет при необходимости."""
+    is_version_ok = client_version == latest_version
+    report = None
+    new_version_alert_sent = was_version_alert_sent
+
+    if not is_version_ok and client_version != "N/A":
+        if not was_version_alert_sent:
+            report = f"🔧 {name}: старая версия ({client_version})"
+            new_version_alert_sent = True
+    elif was_version_alert_sent and is_version_ok:
+        report = f"✅ {name}: версия обновлена до актуальной ({client_version})"
+        new_version_alert_sent = False
+
+    return report, new_version_alert_sent
 
 
-def get_seconds_since(last_online, time_ms) -> int:
+def _check_member_online_status(
+    name: str,
+    last_online_ts: int | None,
+    time_ms: int,
+    previous_state: dict,
+) -> tuple[str | None, int, int, str]:
+    """Проверяет онлайн-статус участника, обрабатывает аномалии и формирует отчет."""
+    report = None
+    previous_alert_level = previous_state.get("offline_alert_level", 0)
+    previous_last_seen_seconds_ago = previous_state.get("last_seen_seconds_ago", -1)
+
+    new_offline_alert_level = previous_alert_level
+    seconds_ago = -1
+    last_online_str = "N/A"
+
+    if not last_online_ts:
+        # Если узел никогда не был в сети и его еще нет в БД, создаем отчет
+        if not previous_state:
+            report = f"❓ {name}: ни разу не был в сети."
+        return report, new_offline_alert_level, seconds_ago, last_online_str
+
+    api_seconds_ago = get_seconds_since(last_online_ts, time_ms)
+    seconds_ago = api_seconds_ago
+
+    anomaly_jump_threshold = (
+        previous_last_seen_seconds_ago
+        + settings.CHECK_INTERVAL_SECONDS
+        + settings.LAST_SEEN_ANOMALY_THRESHOLD_SECONDS
+    )
+
+    if (
+        previous_last_seen_seconds_ago != -1
+        and api_seconds_ago > anomaly_jump_threshold
+    ):
+        seconds_ago = previous_last_seen_seconds_ago + settings.CHECK_INTERVAL_SECONDS
+        print(
+            f"АНАЛИЗ: Обнаружен аномальный скачок 'lastSeen' для {name}. "
+            f"API: {api_seconds_ago} сек, Предыдущее: {previous_last_seen_seconds_ago} сек. "
+            f"Используется расчетное значение: {seconds_ago} сек."
+        )
+        last_online_str = f"~{seconds_ago} сек. назад (расчетное)"
+    else:
+        last_online_str = f"{seconds_ago} сек. назад"
+
+    if seconds_ago <= settings.ONLINE_THRESHOLD_SECONDS:
+        if previous_alert_level > 0:
+            print(f"✅ Устройство {name} снова в сети.")
+            report = f"✅ {name}: снова в сети."
+            new_offline_alert_level = 0
+    else:
+        triggered_level_key = None
+        sorted_thresholds = sorted(
+            settings.OFFLINE_THRESHOLDS.items(),
+            key=lambda item: item[1]["level"],
+            reverse=True,
+        )
+        for key, data in sorted_thresholds:
+            if seconds_ago > data["seconds"]:
+                triggered_level_key = key
+                break
+
+        if triggered_level_key:
+            new_alert_level = settings.OFFLINE_THRESHOLDS[triggered_level_key]["level"]
+            if new_alert_level > previous_alert_level:
+                report = settings.OFFLINE_THRESHOLDS[triggered_level_key][
+                    "message"
+                ].format(name=name)
+                new_offline_alert_level = new_alert_level
+
+    return report, new_offline_alert_level, seconds_ago, last_online_str
+
+
+def _process_member(member: dict, latest_version: str, time_ms: int) -> list[str]:
     """
-    Вычисляет разницу в секундах между текущим временем (time_ms)
-    и временем последнего онлайна (last_online).
-    Оба значения должны быть в миллисекундах.
-    Возвращает целое число секунд.
+    Обрабатывает одного участника: проверяет состояние, сравнивает с предыдущим,
+    сохраняет результат в БД и возвращает отчеты о проблемах.
     """
-    diff_seconds = abs(time_ms - last_online) / 1000
-    return int(diff_seconds)
+    node_id = member["nodeId"]
+    name = member.get("name", node_id)
+    problem_reports = []
+
+    # 1. Получаем предыдущее состояние из БД (или пустой словарь, если нет)
+    # Конвертируем sqlite3.Row в dict, чтобы избежать ошибок с .get() и типизацией
+    db_row = db.get_member_state(node_id)
+    previous_state = dict(db_row) if db_row else {}
+    was_version_alert_sent = previous_state.get("version_alert_sent", False)
+    new_problems_count = previous_state.get("problems_count", 0)
+
+    # 2. Проверка версии
+    client_version = member.get("clientVersion", "N/A").lstrip("v")
+    version_report, new_version_alert_sent = _check_member_version(
+        name, client_version, latest_version, was_version_alert_sent
+    )
+    if version_report:
+        problem_reports.append(version_report)
+        new_problems_count += 1
+
+    # 3. Проверка онлайн-статуса
+    last_online_ts = member.get("lastSeen")
+    online_report, new_offline_alert_level, seconds_ago, last_online_str = (
+        _check_member_online_status(name, last_online_ts, time_ms, previous_state)
+    )
+    if online_report:
+        problem_reports.append(online_report)
+        # Не считаем "снова в сети" за новую проблему
+        if "снова в сети" not in online_report:
+            new_problems_count += 1
+
+    # 4. Вывод статуса в консоль
+    version_status = "OK" if client_version == latest_version else "OLD"
+    print(
+        f"ID: {node_id}, Имя: {name}, Версия: {client_version or 'N/A'} [{version_status}], Онлайн: {last_online_str}"
+    )
+
+    # 5. Сохраняем итоговое новое состояние в БД
+    db.update_member_state(
+        node_id,
+        name,
+        new_version_alert_sent,
+        new_offline_alert_level,
+        seconds_ago,
+        new_problems_count,
+    )
+
+    return problem_reports
 
 
-def main(statistics: dict) -> None:
-    """Основная функция для запуска мониторинга ZeroTier."""
+def run_check_cycle(statistics: dict) -> None:
+    """Основной цикл проверки состояния участников ZeroTier."""
     check_time_str = now_datetime()
     print(f"Дата и время сейчас: {check_time_str}")
 
@@ -49,144 +183,21 @@ def main(statistics: dict) -> None:
 
     print("\n--- Результаты проверки ---")
 
-    problem_reports = []
-
+    all_problem_reports = []
     monitored_members = [m for m in all_members if m["nodeId"] in settings.MEMBER_IDS]
 
     for member in monitored_members:
-        node_id = member["nodeId"]
-        name = member.get("name", node_id)
+        member_reports = _process_member(member, latest_version, time_ms)
+        all_problem_reports.extend(member_reports)
 
-        # 1. Получаем предыдущее состояние из БД
-        previous_state = db.get_member_state(node_id)
-        was_version_alert_sent = (
-            previous_state["version_alert_sent"] if previous_state else False
-        )
-        previous_alert_level = (
-            previous_state["offline_alert_level"] if previous_state else 0
-        )
-        previous_problems_count = (
-            previous_state["problems_count"] if previous_state else 0
-        )
-        previous_last_seen_seconds_ago = (
-            previous_state["last_seen_seconds_ago"] if previous_state else -1
-        )
-
-        # 2. Инициализируем новое состояние на основе предыдущего
-        new_version_alert_sent = was_version_alert_sent
-        new_offline_alert_level = previous_alert_level
-        new_problems_count = previous_problems_count
-
-        # --- 3. Проверка версии ---
-        client_version = member.get("clientVersion", "N/A").lstrip("v")
-        is_version_ok = client_version == latest_version
-        version_status = "OK" if is_version_ok else "OLD"
-
-        if not is_version_ok and client_version != "N/A":
-            if not was_version_alert_sent:
-                problem_reports.append(f"🔧 {name}: старая версия ({client_version})")
-                new_problems_count += 1
-                new_version_alert_sent = True
-        elif was_version_alert_sent and is_version_ok:
-            problem_reports.append(
-                f"✅ {name}: версия обновлена до актуальной ({client_version})"
-            )
-            new_version_alert_sent = False
-
-        # --- 4. Проверка онлайн-статуса ---
-        last_online_ts = member.get("lastSeen")
-        last_online_str = "N/A"
-        seconds_ago = -1  # Значение по умолчанию, если узел никогда не был в сети
-
-        if last_online_ts:
-            api_seconds_ago = get_seconds_since(last_online_ts, time_ms)
-            seconds_ago = api_seconds_ago  # По умолчанию используем значение из API
-
-            # --- Проверка на аномальный скачок времени ---
-            # Порог, который считаем аномалией
-            anomaly_jump_threshold = (
-                previous_last_seen_seconds_ago
-                + settings.CHECK_INTERVAL_SECONDS
-                + settings.LAST_SEEN_ANOMALY_THRESHOLD_SECONDS
-            )
-
-            # Проверяем, если у нас есть предыдущее значение (не -1) и если
-            # текущее значение от API сильно больше ожидаемого.
-            if (
-                previous_last_seen_seconds_ago != -1
-                and api_seconds_ago > anomaly_jump_threshold
-            ):
-                # Это аномалия. Игнорируем значение от API и рассчитываем свое.
-                seconds_ago = (
-                    previous_last_seen_seconds_ago + settings.CHECK_INTERVAL_SECONDS
-                )
-                print(
-                    f"АНАЛИЗ: Обнаружен аномальный скачок 'lastSeen' для {name}. "
-                    f"API: {api_seconds_ago} сек, Предыдущее: {previous_last_seen_seconds_ago} сек. "
-                    f"Используется расчетное значение: {seconds_ago} сек."
-                )
-                last_online_str = f"~{seconds_ago} сек. назад (расчетное)"
-            else:
-                # Аномалии нет, используем значение от API как есть
-                last_online_str = f"{seconds_ago} сек. назад"
-
-            if seconds_ago <= settings.ONLINE_THRESHOLD_SECONDS:
-                if previous_alert_level > 0:
-                    print(f"✅ Устройство {name} ({node_id}) снова в сети.")
-                    problem_reports.append(f"✅ {name}: снова в сети.")
-                    new_offline_alert_level = 0
-            else:
-                triggered_level_key = None
-                sorted_thresholds = sorted(
-                    settings.OFFLINE_THRESHOLDS.items(),
-                    key=lambda item: item[1]["level"],
-                    reverse=True,
-                )
-                for key, data in sorted_thresholds:
-                    if seconds_ago > data["seconds"]:
-                        triggered_level_key = key
-                        break
-
-                if triggered_level_key:
-                    new_alert_level = settings.OFFLINE_THRESHOLDS[triggered_level_key][
-                        "level"
-                    ]
-                    if new_alert_level > previous_alert_level:
-                        message = settings.OFFLINE_THRESHOLDS[triggered_level_key][
-                            "message"
-                        ].format(name=name)
-                        problem_reports.append(message)
-                        new_offline_alert_level = new_alert_level
-                        new_problems_count += 1
-        else:
-            last_online_str = "N/A"
-            if (
-                not previous_state
-            ):  # Отправляем только один раз, если устройства нет в БД
-                problem_reports.append(f"❓ {name}: ни разу не был в сети.")
-                new_problems_count += 1
-
-        print(
-            f"ID: {node_id}, Имя: {name}, Версия: {client_version or 'N/A'} [{version_status}], Онлайн: {last_online_str}"
-        )
-
-        # 5. Сохраняем итоговое новое состояние в БД для этого участника
-        db.update_member_state(
-            node_id,
-            name,
-            new_version_alert_sent,
-            new_offline_alert_level,
-            seconds_ago,
-            new_problems_count,
-        )
-
-    if problem_reports:
-        report_findings(problem_reports, statistics)
+    if all_problem_reports:
+        report_findings(all_problem_reports, statistics)
     else:
         print("\nНовых проблем или изменений статуса не обнаружено.")
 
 
-if __name__ == "__main__":
+def start_monitoring():
+    """Инициализирует и запускает бесконечный цикл мониторинга."""
     # Инициализируем базу данных при первом запуске
     db.initialize_database()
 
@@ -227,7 +238,7 @@ if __name__ == "__main__":
             db.reset_daily_problem_counts()
 
         try:
-            main(stats)
+            run_check_cycle(stats)
         except ValueError as e:
             # Логируем непредвиденную ошибку, чтобы скрипт не падал
             print(f"\n--- Произошла непредвиденная ошибка: {e} ---")
@@ -238,3 +249,7 @@ if __name__ == "__main__":
             f"\n--- Пауза {settings.CHECK_INTERVAL_SECONDS // 60} минут до следующей проверки ---"
         )
         time.sleep(settings.CHECK_INTERVAL_SECONDS)
+
+
+if __name__ == "__main__":
+    start_monitoring()
