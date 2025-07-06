@@ -1,6 +1,26 @@
 """Общие вспомогательные утилиты."""
 
+import subprocess
 from datetime import datetime
+
+
+def get_project_version() -> str:
+    """
+    Получает версию проекта из Git.
+    Использует 'git describe --tags --always' для получения тега или хеша коммита.
+    Возвращает "неизвестно" в случае ошибки (например, если это не git-репозиторий).
+    """
+    try:
+        command = ["git", "describe", "--tags", "--always"]
+        # check=True вызовет исключение, если команда завершится с ошибкой
+        result = subprocess.run(
+            command, capture_output=True, text=True, check=True, encoding="utf-8"
+        )
+        # Убираем возможные переводы строк в конце вывода
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        # Обрабатываем случай, когда git не установлен или это не git-репозиторий
+        return "неизвестно"
 
 
 def now_datetime() -> str:

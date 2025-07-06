@@ -81,6 +81,8 @@ def send_daily_report(stats: dict, problematic_members: list):
 
 def send_startup_notification():
     """Отправляет уведомление о запуске скрипта."""
-    message = "🚀 Мониторинг ZeroTier успешно запущен."
+    message = (
+        f"🚀 Мониторинг ZeroTier (версия: {settings.PROJECT_VERSION}) успешно запущен."
+    )
     print("\n" + message)
     send_telegram_alert(message)

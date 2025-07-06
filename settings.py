@@ -5,6 +5,7 @@ import json
 import time
 import sys
 from dotenv import load_dotenv
+from utils import get_project_version
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -18,6 +19,10 @@ def _exit_with_error(message: str):
     time.sleep(15)
     sys.exit(1)
 
+
+# --- Информация о версии ---
+# Получаем версию проекта из Git при запуске
+PROJECT_VERSION = get_project_version()
 
 # --- Загрузка и валидация конфигурации из .env файла ---
 
