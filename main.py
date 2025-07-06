@@ -7,11 +7,11 @@ from send_to_chat import (
     send_daily_report,
     send_startup_notification,
 )
+from utils import now_datetime
 import settings
 import api_client
 import database_manager as db  # Используем новый модуль для работы с БД
 import checker
-from utils import now_datetime
 
 
 def run_check_cycle(statistics: dict) -> None:

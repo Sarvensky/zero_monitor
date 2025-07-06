@@ -2,9 +2,48 @@
 Модуль, содержащий бизнес-логику для проверки состояния участников сети ZeroTier.
 """
 
+import platform
+import subprocess
 import settings
 import database_manager as db
 from utils import get_seconds_since
+
+
+def ping_host(ip_address: str) -> bool:
+    """
+    Проверяет доступность хоста по IP-адресу с помощью одной ICMP-заявки (ping).
+    Скрывает вывод команды ping.
+
+    Args:
+        ip_address: IP-адрес для проверки.
+
+    Returns:
+        True, если хост отвечает на пинг, иначе False.
+    """
+    # Определяем параметр для количества пингов в зависимости от ОС
+    param = "-n" if platform.system().lower() == "windows" else "-c"
+
+    # Формируем команду для выполнения
+    command = ["ping", param, "1", ip_address]
+
+    try:
+        # Выполняем команду, скрывая ее вывод, и проверяем код возврата.
+        # Код 0 обычно означает, что пинг прошел успешно.
+        return (
+            subprocess.run(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode
+            == 0
+        )
+    except FileNotFoundError:
+        # Это может произойти, если утилита 'ping' не найдена в системном PATH.
+        print(
+            f"ОШИБКА: Команда 'ping' не найдена. Невозможно проверить хост {ip_address}."
+        )
+        return False
 
 
 def check_member_version(
@@ -34,6 +73,7 @@ def check_member_online_status(
     last_online_ts: int | None,
     time_ms: int,
     previous_state: dict,
+    ip_assignments: list[str],
 ) -> tuple[str | None, int, int, str]:
     """Проверяет онлайн-статус участника, обрабатывает аномалии и формирует отчет."""
     report = None
@@ -95,6 +135,21 @@ def check_member_online_status(
                 report = settings.OFFLINE_THRESHOLDS[triggered_level_key][
                     "message"
                 ].format(name=name)
+
+                # --- Дополнительная проверка пингом ---
+                if ip_assignments:
+                    ip_to_ping = ip_assignments[0]
+                    print(
+                        f"АНАЛИЗ: Узел {name} офлайн. Проверяю пинг до {ip_to_ping}..."
+                    )
+                    ping_ok = ping_host(ip_to_ping)
+                    if ping_ok:
+                        report += f"\n  (💡 Пинг до {ip_to_ping} проходит. Возможен сбой контроллера.)"
+                    else:
+                        report += f"\n  (❗️ Пинг до {ip_to_ping} не проходит. Узел недоступен.)"
+                else:
+                    print(f"АНАЛИЗ: У узла {name} нет IP-адреса для проверки пинга.")
+
                 new_offline_alert_level = new_alert_level
 
     return report, new_offline_alert_level, seconds_ago, last_online_str
@@ -123,8 +178,13 @@ def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]
         new_problems_count += 1
 
     last_online_ts = member.get("lastSeen")
+    # Получаем IP-адреса для возможной проверки пингом
+    ip_assignments = member.get("config", {}).get("ipAssignments", [])
+
     online_report, new_offline_alert_level, seconds_ago, last_online_str = (
-        check_member_online_status(name, last_online_ts, time_ms, previous_state)
+        check_member_online_status(
+            name, last_online_ts, time_ms, previous_state, ip_assignments
+        )
     )
     if online_report:
         problem_reports.append(online_report)
