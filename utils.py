@@ -1,6 +1,7 @@
 """Общие вспомогательные утилиты."""
 
 import subprocess
+import os
 from datetime import datetime
 
 
@@ -10,11 +11,19 @@ def get_project_version() -> str:
     Использует 'git describe --tags --always' для получения тега или хеша коммита.
     Возвращает "неизвестно" в случае ошибки (например, если это не git-репозиторий).
     """
+    # Определяем корневую директорию проекта (папка, где лежит этот файл)
+    project_root = os.path.dirname(os.path.abspath(__file__))
+
     try:
         command = ["git", "describe", "--tags", "--always"]
         # check=True вызовет исключение, если команда завершится с ошибкой
         result = subprocess.run(
-            command, capture_output=True, text=True, check=True, encoding="utf-8"
+            command,
+            capture_output=True,
+            text=True,
+            check=True,
+            encoding="utf-8",
+            cwd=project_root,  # Явно указываем рабочую директорию
         )
         # Убираем возможные переводы строк в конце вывода
         return result.stdout.strip()
