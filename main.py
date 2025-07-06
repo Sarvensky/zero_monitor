@@ -68,6 +68,9 @@ def main(statistics: dict) -> None:
         previous_problems_count = (
             previous_state["problems_count"] if previous_state else 0
         )
+        previous_last_seen_seconds_ago = (
+            previous_state["last_seen_seconds_ago"] if previous_state else -1
+        )
 
         # 2. Инициализируем новое состояние на основе предыдущего
         new_version_alert_sent = was_version_alert_sent
@@ -96,8 +99,36 @@ def main(statistics: dict) -> None:
         seconds_ago = -1  # Значение по умолчанию, если узел никогда не был в сети
 
         if last_online_ts:
-            seconds_ago = get_seconds_since(last_online_ts, time_ms)
-            last_online_str = f"{seconds_ago} сек. назад"
+            api_seconds_ago = get_seconds_since(last_online_ts, time_ms)
+            seconds_ago = api_seconds_ago  # По умолчанию используем значение из API
+
+            # --- Проверка на аномальный скачок времени ---
+            # Порог, который считаем аномалией
+            anomaly_jump_threshold = (
+                previous_last_seen_seconds_ago
+                + settings.CHECK_INTERVAL_SECONDS
+                + settings.LAST_SEEN_ANOMALY_THRESHOLD_SECONDS
+            )
+
+            # Проверяем, если у нас есть предыдущее значение (не -1) и если
+            # текущее значение от API сильно больше ожидаемого.
+            if (
+                previous_last_seen_seconds_ago != -1
+                and api_seconds_ago > anomaly_jump_threshold
+            ):
+                # Это аномалия. Игнорируем значение от API и рассчитываем свое.
+                seconds_ago = (
+                    previous_last_seen_seconds_ago + settings.CHECK_INTERVAL_SECONDS
+                )
+                print(
+                    f"АНАЛИЗ: Обнаружен аномальный скачок 'lastSeen' для {name}. "
+                    f"API: {api_seconds_ago} сек, Предыдущее: {previous_last_seen_seconds_ago} сек. "
+                    f"Используется расчетное значение: {seconds_ago} сек."
+                )
+                last_online_str = f"~{seconds_ago} сек. назад (расчетное)"
+            else:
+                # Аномалии нет, используем значение от API как есть
+                last_online_str = f"{seconds_ago} сек. назад"
 
             if seconds_ago <= settings.ONLINE_THRESHOLD_SECONDS:
                 if previous_alert_level > 0:
