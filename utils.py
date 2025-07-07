@@ -10,8 +10,8 @@ import settings
 def get_project_version() -> str:
     """
     Получает версию проекта из Git.
-    Использует 'git describe --tags --always' для получения тега или хеша коммита.
-    Возвращает "неизвестно" в случае ошибки (например, если это не git-репозиторий).
+    Использует 'git describe --tags --always' и форматирует результат
+    Возвращает версию из настроек в случае ошибки (например, если git недоступен).
     """
     # Определяем корневую директорию проекта (папка, где лежит этот файл)
     project_root = os.path.dirname(os.path.abspath(__file__))
@@ -27,8 +27,10 @@ def get_project_version() -> str:
             encoding="utf-8",
             cwd=project_root,  # Явно указываем рабочую директорию
         )
-        # Убираем возможные переводы строк в конце вывода
-        return result.stdout.strip()
+        raw_version = result.stdout.strip()
+        # Заменяем первый дефис на точку для более красивого вида.
+        # Например, '1.1-1-g123abc' превратится в '1.1.1-g123abc'.
+        return raw_version.replace("-", ".", 1)
     except (subprocess.CalledProcessError, FileNotFoundError):
         # Обрабатываем случай, когда git не установлен или это не git-репозиторий
         return settings.PROJECT_VERSION
