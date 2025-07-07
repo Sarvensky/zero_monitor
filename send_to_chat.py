@@ -4,6 +4,7 @@ from datetime import date
 import time
 import requests
 import settings
+from utils import get_project_version
 
 
 def send_telegram_alert(message: str) -> None:
@@ -81,8 +82,6 @@ def send_daily_report(stats: dict, problematic_members: list):
 
 def send_startup_notification():
     """Отправляет уведомление о запуске скрипта."""
-    message = (
-        f"🚀 Мониторинг ZeroTier (версия: {settings.PROJECT_VERSION}) успешно запущен."
-    )
+    message = f"🚀 Мониторинг ZeroTier (v{get_project_version()}) успешно запущен."
     print("\n" + message)
     send_telegram_alert(message)

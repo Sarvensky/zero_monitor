@@ -1,8 +1,10 @@
 """Общие вспомогательные утилиты."""
 
-import subprocess
 import os
+import subprocess
 from datetime import datetime
+
+import settings
 
 
 def get_project_version() -> str:
@@ -29,7 +31,7 @@ def get_project_version() -> str:
         return result.stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         # Обрабатываем случай, когда git не установлен или это не git-репозиторий
-        return "неизвестно"
+        return settings.PROJECT_VERSION
 
 
 def now_datetime() -> str:
