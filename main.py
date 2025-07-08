@@ -97,7 +97,7 @@ def start_monitoring():
         # Сохраняем обновленную статистику в БД после каждой проверки
         db.save_stats(stats)
         print(
-            f"\n{settings.t('pause_before_next_check', minutes=(settings.CHECK_INTERVAL_SECONDS // 60))}"
+            f"\n{settings.t('pause_before_next_check', minutes=settings.CHECK_INTERVAL_SECONDS // 60)}"
         )
         time.sleep(settings.CHECK_INTERVAL_SECONDS)
 

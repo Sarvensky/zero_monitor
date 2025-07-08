@@ -20,22 +20,38 @@ STRINGS = {
         "zt_networks_json_not_found": "Переменная ZEROTIER_NETWORKS_JSON не найдена в .env файле.",
         "member_ids_csv_not_found": "Переменная MEMBER_IDS_CSV не найдена в .env файле.",
         "offline_threshold_5m_missing": "В OFFLINE_THRESHOLDS отсутствует обязательный ключ '5m'.",
-        "interval_must_be_positive": "Интервал проверки должен быть положительным числом. Используется значение по умолчанию: 300 секунд.",
-        "invalid_interval_format": "Неверный формат CHECK_INTERVAL_SECONDS в .env. Используется значение по умолчанию: 300 секунд.",
+        "interval_must_be_positive": (
+            "Интервал проверки должен быть положительным числом. "
+            "Используется значение по умолчанию: 300 секунд."
+        ),
+        "invalid_interval_format": (
+            "Неверный формат CHECK_INTERVAL_SECONDS в .env. "
+            "Используется значение по умолчанию: 300 секунд."
+        ),
         # api_client.py
         "getting_members_info": "Получение информации о членах сети ZeroTier...",
         "error_getting_members": "Ошибка при получении участников сети {net_id}: {e}",
         "failed_to_get_members_for_network": "Не удалось получить участников для сети {net_id}",
-        "alert_failed_to_get_members": "⛔ Не удалось получить участников сети {net_id} после {attempts} попыток. Последняя ошибка: {error}",
+        "alert_failed_to_get_members": (
+            "⛔ Не удалось получить участников сети {net_id} после {attempts} попыток. "
+            "Последняя ошибка: {error}"
+        ),
         "error_getting_latest_version": "Ошибка при получении последней версии ZeroTier: {e}",
-        "alert_failed_to_get_latest_version": "⛔ Не удалось получить последнюю версию ZeroTier после {attempts} попыток. Последняя ошибка: {error}",
+        "alert_failed_to_get_latest_version": (
+            "⛔ Не удалось получить последнюю версию ZeroTier после {attempts} попыток. "
+            "Последняя ошибка: {error}"
+        ),
         "using_fallback_version": "Используется версия по умолчанию: {version}",
         # checker.py
         "ping_command_not_found": "ОШИБКА: Команда 'ping' не найдена. Невозможно проверить хост {ip}.",
         "version_report_old": "🔧 {name}: старая версия ({version})",
         "version_report_updated": "✅ {name}: версия обновлена до актуальной ({version})",
         "member_never_online": "❓ {name}: ни разу не был в сети.",
-        "anomaly_detected": "АНАЛИЗ: Обнаружен аномальный скачок 'lastSeen' для {name}. API: {api_s} сек, Предыдущее: {prev_s} сек. Используется расчетное значение: {calc_s} сек.",
+        "anomaly_detected": (
+            "АНАЛИЗ: Обнаружен аномальный скачок 'lastSeen' для {name}. "
+            "API: {api_s} сек, Предыдущее: {prev_s} сек. "
+            "Используется расчетное значение: {calc_s} сек."
+        ),
         "last_seen_calculated": "~{seconds} сек. назад (расчетное)",
         "last_seen_normal": "{seconds} сек. назад",
         "device_back_online": "✅ Устройство {name} снова в сети.",
@@ -93,22 +109,37 @@ STRINGS = {
         "zt_networks_json_not_found": "ZEROTIER_NETWORKS_JSON variable not found in .env file.",
         "member_ids_csv_not_found": "MEMBER_IDS_CSV variable not found in .env file.",
         "offline_threshold_5m_missing": "OFFLINE_THRESHOLDS is missing the required '5m' key.",
-        "interval_must_be_positive": "Check interval must be a positive number. Using default value: 300 seconds.",
-        "invalid_interval_format": "Invalid CHECK_INTERVAL_SECONDS format in .env. Using default value: 300 seconds.",
+        "interval_must_be_positive": (
+            "Check interval must be a positive number. "
+            "Using default value: 300 seconds."
+        ),
+        "invalid_interval_format": (
+            "Invalid CHECK_INTERVAL_SECONDS format in .env. "
+            "Using default value: 300 seconds."
+        ),
         # api_client.py
         "getting_members_info": "Getting information about ZeroTier network members...",
         "error_getting_members": "Error getting members for network {net_id}: {e}",
         "failed_to_get_members_for_network": "Failed to get members for network {net_id}",
-        "alert_failed_to_get_members": "⛔ Failed to get members for network {net_id} after {attempts} attempts. Last error: {error}",
+        "alert_failed_to_get_members": (
+            "⛔ Failed to get members for network {net_id} after {attempts} attempts. "
+            "Last error: {error}"
+        ),
         "error_getting_latest_version": "Error getting the latest ZeroTier version: {e}",
-        "alert_failed_to_get_latest_version": "⛔ Failed to get the latest ZeroTier version after {attempts} attempts. Last error: {error}",
+        "alert_failed_to_get_latest_version": (
+            "⛔ Failed to get the latest ZeroTier version after {attempts} attempts. "
+            "Last error: {error}"
+        ),
         "using_fallback_version": "Using fallback version: {version}",
         # checker.py
         "ping_command_not_found": "ERROR: 'ping' command not found. Cannot check host {ip}.",
         "version_report_old": "🔧 {name}: outdated version ({version})",
         "version_report_updated": "✅ {name}: version updated to the latest ({version})",
         "member_never_online": "❓ {name}: has never been online.",
-        "anomaly_detected": "ANALYSIS: Anomalous 'lastSeen' jump detected for {name}. API: {api_s}s, Previous: {prev_s}s. Using calculated value: {calc_s}s.",
+        "anomaly_detected": (
+            "ANALYSIS: Anomalous 'lastSeen' jump detected for {name}. "
+            "API: {api_s}s, Previous: {prev_s}s. Using calculated value: {calc_s}s."
+        ),
         "last_seen_calculated": "~{seconds}s ago (calculated)",
         "last_seen_normal": "{seconds}s ago",
         "device_back_online": "✅ Device {name} is back online.",
@@ -193,13 +224,10 @@ class Translator:
         """
         # Получаем строку из словаря, если ключа нет - возвращаем сам ключ
         string_template = STRINGS.get(self.lang, {}).get(key, key)
-        try:
-            if kwargs:
-                return string_template.format(**kwargs)
-            return string_template
-        except KeyError as e:
-            # Если в строке есть плейсхолдер, но для него не передан аргумент
-            print(
-                f"Localization Error: Missing argument for key '{key}' in language '{self.lang}': {e}"
-            )
-            return f"[{key}: MISSING_ARG {e}]"
+        # Если строка была разбита на части, "склеиваем" ее
+        if isinstance(string_template, tuple):
+            string_template = "".join(string_template)
+
+        if kwargs:
+            return string_template.format(**kwargs)
+        return string_template
