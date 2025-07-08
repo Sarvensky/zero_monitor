@@ -52,7 +52,18 @@ def check_member_version(
     latest_version: str,
     was_version_alert_sent: bool,
 ) -> tuple[str | None, bool]:
-    """Проверяет версию клиента и формирует отчет при необходимости."""
+    """Проверяет версию клиента ZeroTier и формирует отчет при необходимости.
+
+    Args:
+        name: Имя участника сети.
+        client_version: Текущая версия клиента ZeroTier на устройстве.
+        latest_version: Последняя актуальная версия ZeroTier.
+        was_version_alert_sent: Флаг, указывающий, было ли уже отправлено
+                                уведомление о старой версии.
+
+    Returns:
+        Кортеж, содержащий (отчет о версии или None, новый статус флага уведомления).
+    """
     is_version_ok = client_version == latest_version
     report = None
     new_version_alert_sent = was_version_alert_sent

@@ -57,6 +57,12 @@ def initialize_database() -> None:
             if "duplicate column name" not in str(e).lower():
                 raise
 
+        # Сбрасываем сохраненное время последнего онлайна при каждом запуске,
+        # чтобы избежать ложных срабатываний детектора аномалий после перезапуска.
+        # Устанавливаем в -1, так как это значение используется для обозначения
+        # отсутствия предыдущих данных о времени.
+        cursor.execute("UPDATE member_states SET last_seen_seconds_ago = -1")
+
         # Таблица для хранения общей статистики работы скрипта (ключ-значение)
         cursor.execute(
             """
@@ -80,7 +86,9 @@ def initialize_database() -> None:
             "INSERT OR IGNORE INTO script_stats (key, value) VALUES (?, ?)",
             initial_stats,
         )
-        print("База данных инициализирована.")
+        print(
+            "База данных инициализирована, сохраненные состояния 'lastSeen' сброшены."
+        )
 
 
 def get_member_state(node_id: str) -> sqlite3.Row | None:
