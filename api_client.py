@@ -6,6 +6,7 @@
 import time
 import requests
 import settings
+import database_manager as db
 from send_to_chat import send_telegram_alert
 
 
@@ -71,9 +72,12 @@ def get_all_members(networks: list[dict]) -> list[dict]:
 
 
 def get_latest_zerotier_version() -> str:
-    """Получает последнюю версию ZeroTier с GitHub API с несколькими попытками."""
+    """
+    Получает последнюю версию ZeroTier с GitHub API.
+    В случае успеха обновляет значение в БД.
+    В случае ошибки пытается получить значение из БД, и только потом использует fallback.
+    """
     url = "https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest"
-    fallback_version = "1.14.2"  # Версия на случай сбоя API
     last_error = None
 
     for attempt in range(settings.API_RETRY_ATTEMPTS):
@@ -82,7 +86,10 @@ def get_latest_zerotier_version() -> str:
             response.raise_for_status()
             data = response.json()
             # Теги на GitHub часто имеют префикс 'v', уберем его
-            return data["tag_name"].lstrip("v")
+            latest_version = data["tag_name"].lstrip("v")
+            # При успехе сохраняем в БД
+            db.save_latest_zt_version(latest_version)
+            return latest_version
         except (requests.RequestException, KeyError, ValueError) as e:
             last_error = e
             print(
@@ -98,6 +105,7 @@ def get_latest_zerotier_version() -> str:
                 time.sleep(settings.API_RETRY_DELAY_SECONDS)
             else:
                 print(settings.t("all_attempts_failed"))
+
     # Отправляем уведомление только после того, как все попытки провалились
     if last_error:
         error_message = settings.t(
@@ -106,5 +114,13 @@ def get_latest_zerotier_version() -> str:
             error=last_error,
         )
         send_telegram_alert(error_message)
-    print(settings.t("using_fallback_version", version=fallback_version))
-    return fallback_version
+
+    # Если API недоступен, пытаемся взять версию из БД
+    db_version = db.get_latest_zt_version_from_db()
+    if db_version:
+        print(settings.t("using_db_version", version=db_version))
+        return db_version
+
+    # Если и в БД ничего нет, используем fallback из настроек
+    print(settings.t("using_fallback_version", version=settings.ZT_FALLBACK_VERSION))
+    return settings.ZT_FALLBACK_VERSION

@@ -93,6 +93,7 @@ def initialize_database() -> None:
             ("checks_today", "0"),
             ("problems_today", "0"),
             ("last_check_datetime", "N/A"),
+            ("latest_zt_version", settings.ZT_FALLBACK_VERSION),
         ]
         cursor.executemany(
             "INSERT OR IGNORE INTO script_stats (key, value) VALUES (?, ?)",
@@ -161,6 +162,26 @@ def save_stats(stats: dict) -> None:
             conn.execute(
                 "UPDATE script_stats SET value = ? WHERE key = ?", (str(value), key)
             )
+
+
+def get_latest_zt_version_from_db() -> str | None:
+    """Получает последнюю известную версию ZeroTier из БД."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM script_stats WHERE key = 'latest_zt_version'")
+        row = cursor.fetchone()
+        return row["value"] if row else None
+
+
+def save_latest_zt_version(version: str) -> None:
+    """Сохраняет последнюю версию ZeroTier в БД."""
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE script_stats SET value = ? WHERE key = 'latest_zt_version'",
+            (version,),
+        )
+    # Выводим сообщение в консоль, но не в Telegram, т.к. это не событие-ошибка
+    print(settings.t("zt_version_db_updated", version=version))
 
 
 def get_problematic_members() -> list[sqlite3.Row]:

@@ -42,6 +42,8 @@ STRINGS = {
             "Последняя ошибка: {error}"
         ),
         "using_fallback_version": "Используется версия по умолчанию: {version}",
+        "using_db_version": "Используется версия из базы данных: {version}",
+        "zt_version_db_updated": "Версия ZeroTier в базе данных обновлена на {version}",
         # checker.py
         "ping_command_not_found": "ОШИБКА: Команда 'ping' не найдена. Невозможно проверить хост {ip}.",
         "version_report_old": "🔧 {name}: старая версия ({version})",
@@ -131,6 +133,8 @@ STRINGS = {
             "Last error: {error}"
         ),
         "using_fallback_version": "Using fallback version: {version}",
+        "using_db_version": "Using version from database: {version}",
+        "zt_version_db_updated": "ZeroTier version in database updated to {version}",
         # checker.py
         "ping_command_not_found": "ERROR: 'ping' command not found. Cannot check host {ip}.",
         "version_report_old": "🔧 {name}: outdated version ({version})",
