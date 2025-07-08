@@ -5,15 +5,28 @@ import json
 import time
 import sys
 from dotenv import load_dotenv
+from localization import Translator
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
 
+# --- Языковые настройки ---
+# Загрузка языка из .env, по умолчанию 'ru'
+# LANGUAGE=RU или LANGUAGE=EN
+LANGUAGE = os.getenv("LANGUAGE", "ru").lower()
+
+# --- Инициализация локализации ---
+# Создаем глобальный экземпляр переводчика, который будет доступен
+# во всем проекте через импорт `from settings import t`.
+# Это централизует управление языком.
+t = Translator(LANGUAGE).t
+
 
 def _exit_with_error(message: str):
     """Выводит сообщение о критической ошибке и завершает работу скрипта."""
-    print(f"\nКРИТИЧЕСКАЯ ОШИБКА: {message}")
-    print("Пожалуйста, исправьте конфигурацию в файле .env и перезапустите скрипт.")
+    # Используем переводчик для вывода сообщений
+    print(f"\n{t('critical_error', message=message)}")
+    print(t("fix_env_and_restart"))
     # Добавляем паузу, чтобы пользователь успел прочитать ошибку в консоли
     time.sleep(15)
     sys.exit(1)
@@ -32,7 +45,7 @@ if ZEROTIER_NETWORKS_JSON:
     try:
         ZEROTIER_NETWORKS = json.loads(ZEROTIER_NETWORKS_JSON)
         if not isinstance(ZEROTIER_NETWORKS, list):
-            raise ValueError("JSON должен быть списком (массивом).")
+            raise ValueError(t("json_must_be_list"))
         # Дополнительная проверка структуры
         for network in ZEROTIER_NETWORKS:
             if (
@@ -40,20 +53,18 @@ if ZEROTIER_NETWORKS_JSON:
                 or "token" not in network
                 or "network_id" not in network
             ):
-                raise ValueError(
-                    "Каждый элемент списка должен быть словарем с ключами 'token' и 'network_id'."
-                )
+                raise ValueError(t("json_must_be_dict"))
     except (json.JSONDecodeError, ValueError) as e:
-        _exit_with_error(f"Неверный формат ZEROTIER_NETWORKS_JSON в .env файле. {e}")
+        _exit_with_error(t("invalid_json_format", e=e))
 else:
-    _exit_with_error("Переменная ZEROTIER_NETWORKS_JSON не найдена в .env файле.")
+    _exit_with_error(t("zt_networks_json_not_found"))
 
 # Загрузка ID участников из строки, разделенной запятыми
 MEMBER_IDS_CSV = os.getenv("MEMBER_IDS_CSV")
 if MEMBER_IDS_CSV:
     MEMBER_IDS = [item.strip() for item in MEMBER_IDS_CSV.split(",")]
 else:
-    _exit_with_error("Переменная MEMBER_IDS_CSV не найдена в .env файле.")
+    _exit_with_error(t("member_ids_csv_not_found"))
 
 # API и Telegram токены
 API_URL = "https://api.zerotier.com/api/v1/"
@@ -71,28 +82,24 @@ LAST_SEEN_ANOMALY_THRESHOLD_SECONDS = 200
 
 # Уровни оповещений об офлайне.
 OFFLINE_THRESHOLDS = {
-    "1h": {"seconds": 3600, "message": "🆘 {name}: офлайн более 1 часа!", "level": 3},
-    "15m": {"seconds": 900, "message": "🚨 {name}: офлайн более 15 минут!", "level": 2},
-    "5m": {"seconds": 300, "message": "⚠️ {name}: офлайн более 5 минут.", "level": 1},
+    "1h": {"seconds": 3600, "message_key": "offline_level3_message", "level": 3},
+    "15m": {"seconds": 900, "message_key": "offline_level2_message", "level": 2},
+    "5m": {"seconds": 300, "message_key": "offline_level1_message", "level": 1},
 }
 
 # Порог, после которого устройство считается онлайн (в секундах)
 if "5m" not in OFFLINE_THRESHOLDS:
-    _exit_with_error("В OFFLINE_THRESHOLDS отсутствует обязательный ключ '5m'.")
+    _exit_with_error(t("offline_threshold_5m_missing"))
 ONLINE_THRESHOLD_SECONDS = OFFLINE_THRESHOLDS["5m"]["seconds"]
 
 # Интервал проверки
 try:
     CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "300"))
     if CHECK_INTERVAL_SECONDS <= 0:
-        print(
-            "Интервал проверки должен быть положительным числом. Используется значение по умолчанию: 300 секунд."
-        )
+        print(t("interval_must_be_positive"))
         CHECK_INTERVAL_SECONDS = 300
 except (ValueError, TypeError):
-    print(
-        "Неверный формат CHECK_INTERVAL_SECONDS в .env. Используется значение по умолчанию: 300 секунд."
-    )
+    print(t("invalid_interval_format"))
     CHECK_INTERVAL_SECONDS = 300
 
 # --- Настройки для повторных запросов к API ---

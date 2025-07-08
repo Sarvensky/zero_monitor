@@ -23,21 +23,25 @@ def get_members(token: str, network_id: str) -> list | None:
         except requests.RequestException as e:
             last_error = e
             print(
-                f"Попытка {attempt + 1}/{settings.API_RETRY_ATTEMPTS}: "
-                f"Ошибка при получении участников сети {network_id}: {e}"
+                f"{settings.t('attempt_info', attempt=attempt + 1, total=settings.API_RETRY_ATTEMPTS)} "
+                f"{settings.t('error_getting_members', net_id=network_id, e=e)}"
             )
             if attempt < settings.API_RETRY_ATTEMPTS - 1:
                 print(
-                    f"Повторная попытка через {settings.API_RETRY_DELAY_SECONDS} сек..."
+                    settings.t(
+                        "retry_in_seconds", delay=settings.API_RETRY_DELAY_SECONDS
+                    )
                 )
                 time.sleep(settings.API_RETRY_DELAY_SECONDS)
             else:
-                print("Все попытки исчерпаны.")
+                print(settings.t("all_attempts_failed"))
     # Отправляем уведомление только после того, как все попытки провалились
     if last_error:
-        error_message = (
-            f"⛔ Не удалось получить участников сети {network_id} после "
-            f"{settings.API_RETRY_ATTEMPTS} попыток. Последняя ошибка: {last_error}"
+        error_message = settings.t(
+            "alert_failed_to_get_members",
+            net_id=network_id,
+            attempts=settings.API_RETRY_ATTEMPTS,
+            error=last_error,
         )
         send_telegram_alert(error_message)
     return None
@@ -45,7 +49,7 @@ def get_members(token: str, network_id: str) -> list | None:
 
 def get_all_members(networks: list[dict]) -> list[dict]:
     """Получает и объединяет участников из всех указанных сетей ZeroTier."""
-    print("Получение информации о членах сети ZeroTier...")
+    print(settings.t("getting_members_info"))
     all_members = []
     num_networks = len(networks)
     for i, network in enumerate(networks):
@@ -53,7 +57,11 @@ def get_all_members(networks: list[dict]) -> list[dict]:
         if members:
             all_members.extend(members)
         else:
-            print(f"Не удалось получить участников для сети {network['network_id']}")
+            print(
+                settings.t(
+                    "failed_to_get_members_for_network", net_id=network["network_id"]
+                )
+            )
 
         # Добавляем паузу между запросами к разным сетям, чтобы не превышать лимиты API.
         # Пауза не нужна после последнего запроса.
@@ -78,21 +86,25 @@ def get_latest_zerotier_version() -> str:
         except (requests.RequestException, KeyError, ValueError) as e:
             last_error = e
             print(
-                f"Попытка {attempt + 1}/{settings.API_RETRY_ATTEMPTS}: Ошибка при получении последней версии ZeroTier: {e}"
+                f"{settings.t('attempt_info', attempt=attempt + 1, total=settings.API_RETRY_ATTEMPTS)} "
+                f"{settings.t('error_getting_latest_version', e=e)}"
             )
             if attempt < settings.API_RETRY_ATTEMPTS - 1:
                 print(
-                    f"Повторная попытка через {settings.API_RETRY_DELAY_SECONDS} сек..."
+                    settings.t(
+                        "retry_in_seconds", delay=settings.API_RETRY_DELAY_SECONDS
+                    )
                 )
                 time.sleep(settings.API_RETRY_DELAY_SECONDS)
             else:
-                print("Все попытки исчерпаны.")
+                print(settings.t("all_attempts_failed"))
     # Отправляем уведомление только после того, как все попытки провалились
     if last_error:
-        error_message = (
-            f"⛔ Не удалось получить последнюю версию ZeroTier после "
-            f"{settings.API_RETRY_ATTEMPTS} попыток. Последняя ошибка: {last_error}"
+        error_message = settings.t(
+            "alert_failed_to_get_latest_version",
+            attempts=settings.API_RETRY_ATTEMPTS,
+            error=last_error,
         )
         send_telegram_alert(error_message)
-    print(f"Используется версия по умолчанию: {fallback_version}")
+    print(settings.t("using_fallback_version", version=fallback_version))
     return fallback_version

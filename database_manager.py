@@ -41,7 +41,13 @@ def initialize_database() -> None:
             cursor.execute(
                 "ALTER TABLE member_states ADD COLUMN last_seen_seconds_ago INTEGER DEFAULT -1"
             )
-            print("Столбец 'last_seen_seconds_ago' добавлен в таблицу 'member_states'.")
+            print(
+                settings.t(
+                    "column_added_to_table",
+                    column="last_seen_seconds_ago",
+                    table="member_states",
+                )
+            )
         except sqlite3.OperationalError as e:
             # Игнорируем ошибку, если столбец уже существует.
             # Сообщение об ошибке может отличаться в разных версиях SQLite.
@@ -52,7 +58,13 @@ def initialize_database() -> None:
             cursor.execute(
                 "ALTER TABLE member_states ADD COLUMN problems_count INTEGER DEFAULT 0"
             )
-            print("Столбец 'problems_count' добавлен в таблицу 'member_states'.")
+            print(
+                settings.t(
+                    "column_added_to_table",
+                    column="problems_count",
+                    table="member_states",
+                )
+            )
         except sqlite3.OperationalError as e:
             if "duplicate column name" not in str(e).lower():
                 raise
@@ -80,15 +92,13 @@ def initialize_database() -> None:
             ("last_report_date", today_str),
             ("checks_today", "0"),
             ("problems_today", "0"),
-            ("last_check_datetime", "н/д"),  # н/д - нет данных
+            ("last_check_datetime", "N/A"),
         ]
         cursor.executemany(
             "INSERT OR IGNORE INTO script_stats (key, value) VALUES (?, ?)",
             initial_stats,
         )
-        print(
-            "База данных инициализирована, сохраненные состояния 'lastSeen' сброшены."
-        )
+        print(settings.t("db_initialized"))
 
 
 def get_member_state(node_id: str) -> sqlite3.Row | None:
@@ -171,4 +181,4 @@ def reset_daily_problem_counts() -> None:
     """Сбрасывает счетчик дневных проблем для всех участников."""
     with get_db_connection() as conn:
         conn.execute("UPDATE member_states SET problems_count = 0")
-        print("Счетчики проблем для всех узлов сброшены.")
+        print(settings.t("daily_counters_reset"))

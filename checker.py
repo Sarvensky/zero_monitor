@@ -40,9 +40,7 @@ def ping_host(ip_address: str) -> bool:
         )
     except FileNotFoundError:
         # Это может произойти, если утилита 'ping' не найдена в системном PATH.
-        print(
-            f"ОШИБКА: Команда 'ping' не найдена. Невозможно проверить хост {ip_address}."
-        )
+        print(settings.t("ping_command_not_found", ip=ip_address))
         return False
 
 
@@ -70,10 +68,10 @@ def check_member_version(
 
     if not is_version_ok and client_version != "N/A":
         if not was_version_alert_sent:
-            report = f"🔧 {name}: старая версия ({client_version})"
+            report = settings.t("version_report_old", name=name, version=client_version)
             new_version_alert_sent = True
     elif was_version_alert_sent and is_version_ok:
-        report = f"✅ {name}: версия обновлена до актуальной ({client_version})"
+        report = settings.t("version_report_updated", name=name, version=client_version)
         new_version_alert_sent = False
 
     return report, new_version_alert_sent
@@ -97,7 +95,7 @@ def check_member_online_status(
 
     if not last_online_ts:
         if not previous_state:
-            report = f"❓ {name}: ни разу не был в сети."
+            report = settings.t("member_never_online", name=name)
         return report, new_offline_alert_level, seconds_ago, last_online_str
 
     api_seconds_ago = get_seconds_since(last_online_ts, time_ms)
@@ -115,18 +113,22 @@ def check_member_online_status(
     ):
         seconds_ago = previous_last_seen_seconds_ago + settings.CHECK_INTERVAL_SECONDS
         print(
-            f"АНАЛИЗ: Обнаружен аномальный скачок 'lastSeen' для {name}. "
-            f"API: {api_seconds_ago} сек, Предыдущее: {previous_last_seen_seconds_ago} сек. "
-            f"Используется расчетное значение: {seconds_ago} сек."
+            settings.t(
+                "anomaly_detected",
+                name=name,
+                api_s=api_seconds_ago,
+                prev_s=previous_last_seen_seconds_ago,
+                calc_s=seconds_ago,
+            )
         )
-        last_online_str = f"~{seconds_ago} сек. назад (расчетное)"
+        last_online_str = settings.t("last_seen_calculated", seconds=seconds_ago)
     else:
-        last_online_str = f"{seconds_ago} сек. назад"
+        last_online_str = settings.t("last_seen_normal", seconds=seconds_ago)
 
     if seconds_ago <= settings.ONLINE_THRESHOLD_SECONDS:
         if previous_alert_level > 0:
-            print(f"✅ Устройство {name} снова в сети.")
-            report = f"✅ {name}: снова в сети."
+            print(settings.t("device_back_online", name=name))
+            report = settings.t("member_back_online_report", name=name)
             new_offline_alert_level = 0
     else:
         triggered_level_key = None
@@ -143,23 +145,26 @@ def check_member_online_status(
         if triggered_level_key:
             new_alert_level = settings.OFFLINE_THRESHOLDS[triggered_level_key]["level"]
             if new_alert_level > previous_alert_level:
-                report = settings.OFFLINE_THRESHOLDS[triggered_level_key][
-                    "message"
-                ].format(name=name)
+                message_key = settings.OFFLINE_THRESHOLDS[triggered_level_key][
+                    "message_key"
+                ]
+                report = settings.t(message_key, name=name)
 
                 # --- Дополнительная проверка пингом ---
                 if ip_assignments:
                     ip_to_ping = ip_assignments[0]
                     print(
-                        f"АНАЛИЗ: Узел {name} офлайн. Проверяю пинг до {ip_to_ping}..."
+                        settings.t(
+                            "checking_ping_for_offline_node", name=name, ip=ip_to_ping
+                        )
                     )
                     ping_ok = ping_host(ip_to_ping)
                     if ping_ok:
-                        report += f"\n  (💡 Пинг до {ip_to_ping} проходит. Возможен сбой контроллера.)"
+                        report += settings.t("ping_success_report", ip=ip_to_ping)
                     else:
-                        report += f"\n  (❗️ Пинг до {ip_to_ping} не проходит. Узел недоступен.)"
+                        report += settings.t("ping_fail_report", ip=ip_to_ping)
                 else:
-                    print(f"АНАЛИЗ: У узла {name} нет IP-адреса для проверки пинга.")
+                    print(settings.t("no_ip_for_ping", name=name))
 
                 new_offline_alert_level = new_alert_level
 
@@ -199,12 +204,20 @@ def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]
     )
     if online_report:
         problem_reports.append(online_report)
-        if "снова в сети" not in online_report:
+        # Не считаем проблемой, если узел просто вернулся в онлайн
+        if online_report != settings.t("member_back_online_report", name=name):
             new_problems_count += 1
 
     version_status = "OK" if client_version == latest_version else "OLD"
     print(
-        f"ID: {node_id}, Имя: {name}, Версия: {client_version or 'N/A'} [{version_status}], Онлайн: {last_online_str}"
+        settings.t(
+            "check_result_log",
+            id=node_id,
+            name=name,
+            version=(client_version or "N/A"),
+            status=version_status,
+            online_str=last_online_str,
+        )
     )
 
     db.update_member_state(
