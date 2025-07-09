@@ -7,6 +7,7 @@ import subprocess
 import settings
 import database_manager as db
 from utils import get_seconds_since
+from models import MemberState, OnlineStatusResult
 
 
 def ping_host(ip_address: str) -> bool:
@@ -81,22 +82,26 @@ def check_member_online_status(
     name: str,
     last_online_ts: int | None,
     time_ms: int,
-    previous_state: dict,
+    previous_state: MemberState | None,
     ip_assignments: list[str],
-) -> tuple[str | None, int, int, str]:
+) -> OnlineStatusResult:
     """Проверяет онлайн-статус участника, обрабатывает аномалии и формирует отчет."""
     report = None
-    previous_alert_level = previous_state.get("offline_alert_level", 0)
-    previous_last_seen_seconds_ago = previous_state.get("last_seen_seconds_ago", -1)
+    previous_alert_level = previous_state.offline_alert_level if previous_state else 0
+    previous_last_seen_seconds_ago = (
+        previous_state.last_seen_seconds_ago if previous_state else -1
+    )
 
     new_offline_alert_level = previous_alert_level
     seconds_ago = -1
     last_online_str = "N/A"
 
     if not last_online_ts:
-        if not previous_state:
+        if previous_state is None:
             report = settings.t("member_never_online", name=name)
-        return report, new_offline_alert_level, seconds_ago, last_online_str
+        return OnlineStatusResult(
+            report, new_offline_alert_level, seconds_ago, last_online_str
+        )
 
     api_seconds_ago = get_seconds_since(last_online_ts, time_ms)
     seconds_ago = api_seconds_ago
@@ -168,7 +173,9 @@ def check_member_online_status(
 
                 new_offline_alert_level = new_alert_level
 
-    return report, new_offline_alert_level, seconds_ago, last_online_str
+    return OnlineStatusResult(
+        report, new_offline_alert_level, seconds_ago, last_online_str
+    )
 
 
 def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]:
@@ -180,14 +187,16 @@ def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]
     name = member.get("name", node_id)
     problem_reports = []
 
-    db_row = db.get_member_state(node_id)
-    previous_state = dict(db_row) if db_row else {}
-    was_version_alert_sent = previous_state.get("version_alert_sent", False)
-    new_problems_count = previous_state.get("problems_count", 0)
+    # Получаем предыдущее состояние или создаем новое, если участник не найден в БД
+    previous_state = db.get_member_state(node_id)
+    if previous_state is None:
+        previous_state = MemberState(node_id=node_id, name=name)
+
+    new_problems_count = previous_state.problems_count
 
     client_version = member.get("clientVersion", "N/A").lstrip("v")
     version_report, new_version_alert_sent = check_member_version(
-        name, client_version, latest_version, was_version_alert_sent
+        name, client_version, latest_version, previous_state.version_alert_sent
     )
     if version_report:
         problem_reports.append(version_report)
@@ -197,15 +206,14 @@ def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]
     # Получаем IP-адреса для возможной проверки пингом
     ip_assignments = member.get("config", {}).get("ipAssignments", [])
 
-    online_report, new_offline_alert_level, seconds_ago, last_online_str = (
-        check_member_online_status(
-            name, last_online_ts, time_ms, previous_state, ip_assignments
-        )
+    online_status = check_member_online_status(
+        name, last_online_ts, time_ms, previous_state, ip_assignments
     )
-    if online_report:
-        problem_reports.append(online_report)
+
+    if online_status.report:
+        problem_reports.append(online_status.report)
         # Не считаем проблемой, если узел просто вернулся в онлайн
-        if online_report != settings.t("member_back_online_report", name=name):
+        if online_status.report != settings.t("member_back_online_report", name=name):
             new_problems_count += 1
 
     version_status = "OK" if client_version == latest_version else "OLD"
@@ -216,17 +224,19 @@ def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]
             name=name,
             version=(client_version or "N/A"),
             status=version_status,
-            online_str=last_online_str,
+            online_str=online_status.last_online_str,
         )
     )
 
-    db.update_member_state(
+    # Создаем и сохраняем новое состояние
+    new_state = MemberState(
         node_id,
         name,
         new_version_alert_sent,
-        new_offline_alert_level,
-        seconds_ago,
+        online_status.new_offline_alert_level,
+        online_status.seconds_ago,
         new_problems_count,
     )
+    db.update_member_state(new_state)
 
     return problem_reports

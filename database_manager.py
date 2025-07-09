@@ -3,6 +3,7 @@
 import sqlite3
 from datetime import date
 import settings
+from models import MemberState, ProblematicMember
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -11,6 +12,25 @@ def get_db_connection() -> sqlite3.Connection:
     # Позволяет обращаться к колонкам по имени, что удобнее, чем по индексу
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _add_column_if_not_exists(
+    cursor: sqlite3.Cursor, table_name: str, column_name: str, column_def: str
+):
+    """
+    Добавляет столбец в таблицу, если он еще не существует,
+    игнорируя ошибку, если столбец уже есть.
+    """
+    try:
+        cursor.execute(
+            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"
+        )
+        print(settings.t("column_added_to_table", column=column_name, table=table_name))
+    except sqlite3.OperationalError as e:
+        # Игнорируем ошибку, если столбец уже существует.
+        # Сообщение об ошибке может отличаться в разных версиях SQLite.
+        if "duplicate column name" not in str(e).lower():
+            raise
 
 
 def initialize_database() -> None:
@@ -37,37 +57,12 @@ def initialize_database() -> None:
 
         # Для обратной совместимости с базами, созданными до этого изменения,
         # попробуем добавить столбец, если он отсутствует.
-        try:
-            cursor.execute(
-                "ALTER TABLE member_states ADD COLUMN last_seen_seconds_ago INTEGER DEFAULT -1"
-            )
-            print(
-                settings.t(
-                    "column_added_to_table",
-                    column="last_seen_seconds_ago",
-                    table="member_states",
-                )
-            )
-        except sqlite3.OperationalError as e:
-            # Игнорируем ошибку, если столбец уже существует.
-            # Сообщение об ошибке может отличаться в разных версиях SQLite.
-            if "duplicate column name" not in str(e).lower():
-                raise
-
-        try:
-            cursor.execute(
-                "ALTER TABLE member_states ADD COLUMN problems_count INTEGER DEFAULT 0"
-            )
-            print(
-                settings.t(
-                    "column_added_to_table",
-                    column="problems_count",
-                    table="member_states",
-                )
-            )
-        except sqlite3.OperationalError as e:
-            if "duplicate column name" not in str(e).lower():
-                raise
+        _add_column_if_not_exists(
+            cursor, "member_states", "last_seen_seconds_ago", "INTEGER DEFAULT -1"
+        )
+        _add_column_if_not_exists(
+            cursor, "member_states", "problems_count", "INTEGER DEFAULT 0"
+        )
 
         # Сбрасываем сохраненное время последнего онлайна при каждом запуске,
         # чтобы избежать ложных срабатываний детектора аномалий после перезапуска.
@@ -102,22 +97,16 @@ def initialize_database() -> None:
         print(settings.t("db_initialized"))
 
 
-def get_member_state(node_id: str) -> sqlite3.Row | None:
+def get_member_state(node_id: str) -> MemberState | None:
     """Получает состояние для одного участника из БД."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM member_states WHERE node_id = ?", (node_id,))
-        return cursor.fetchone()
+        row = cursor.fetchone()
+        return MemberState.from_db_row(row)
 
 
-def update_member_state(
-    node_id: str,
-    name: str,
-    version_alert_sent: bool,
-    offline_alert_level: int,
-    last_seen_seconds_ago: int,
-    problems_count: int,
-):
+def update_member_state(state: MemberState):
     """Обновляет или вставляет состояние участника в БД."""
     with get_db_connection() as conn:
         conn.execute(
@@ -125,19 +114,19 @@ def update_member_state(
         INSERT INTO member_states (node_id, name, version_alert_sent, offline_alert_level, last_seen_seconds_ago, problems_count)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(node_id) DO UPDATE SET
-            name=excluded.name,
-            version_alert_sent=excluded.version_alert_sent,
-            offline_alert_level=excluded.offline_alert_level,
-            last_seen_seconds_ago=excluded.last_seen_seconds_ago,
-            problems_count=excluded.problems_count
+            name = excluded.name,
+            version_alert_sent = excluded.version_alert_sent,
+            offline_alert_level = excluded.offline_alert_level,
+            last_seen_seconds_ago = excluded.last_seen_seconds_ago,
+            problems_count = excluded.problems_count
         """,
             (
-                node_id,
-                name,
-                version_alert_sent,
-                offline_alert_level,
-                last_seen_seconds_ago,
-                problems_count,
+                state.node_id,
+                state.name,
+                state.version_alert_sent,
+                state.offline_alert_level,
+                state.last_seen_seconds_ago,
+                state.problems_count,
             ),
         )
 
@@ -184,7 +173,7 @@ def save_latest_zt_version(version: str) -> None:
     print(settings.t("zt_version_db_updated", version=version))
 
 
-def get_problematic_members() -> list[sqlite3.Row]:
+def get_problematic_members() -> list[ProblematicMember]:
     """Возвращает список участников, у которых были проблемы за день."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -195,7 +184,7 @@ def get_problematic_members() -> list[sqlite3.Row]:
             ORDER BY problems_count DESC
             """
         )
-        return cursor.fetchall()
+        return [ProblematicMember(**dict(row)) for row in cursor.fetchall()]
 
 
 def reset_daily_problem_counts() -> None:

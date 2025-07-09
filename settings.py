@@ -34,7 +34,7 @@ def _exit_with_error(message: str):
 
 # --- Информация о версии ---
 # Получаем версию проекта из Git при запуске
-PROJECT_VERSION = "1.3"
+PROJECT_VERSION = "1.4"
 # Версия по умолчанию, если не удается получить с GitHub или из БД
 ZT_FALLBACK_VERSION = "1.14.2"
 
@@ -107,3 +107,4 @@ except (ValueError, TypeError):
 # --- Настройки для повторных запросов к API ---
 API_RETRY_ATTEMPTS = 3
 API_RETRY_DELAY_SECONDS = 5
+API_TIMEOUT_SECONDS = 10  # Таймаут для API запросов в секундах

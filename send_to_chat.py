@@ -1,9 +1,9 @@
 """Модуль для отправки уведомлений и отчетов о состоянии ZeroTier в Telegram."""
 
 from datetime import date
-import time
-import requests
 import settings
+import http_client
+from models import ProblematicMember
 from utils import get_project_version
 
 
@@ -16,26 +16,16 @@ def send_telegram_alert(message: str) -> None:
     url = f"https://api.telegram.org/bot{settings.BOT_TOKEN}/sendMessage"
     payload = {"chat_id": settings.CHAT_ID, "text": message}
 
-    for attempt in range(settings.API_RETRY_ATTEMPTS):
-        try:
-            response = requests.post(url, json=payload, timeout=10)
-            response.raise_for_status()
-            print(settings.t("telegram_notification_sent"))
-            return  # Выходим из функции при успехе
-        except requests.exceptions.RequestException as e:
-            print(
-                f"{settings.t('attempt_info', attempt=attempt + 1, total=settings.API_RETRY_ATTEMPTS)} "
-                f"{settings.t('telegram_sending_error', e=e)}"
-            )
-            if attempt < settings.API_RETRY_ATTEMPTS - 1:
-                print(
-                    settings.t(
-                        "retry_in_seconds", delay=settings.API_RETRY_DELAY_SECONDS
-                    )
-                )
-                time.sleep(settings.API_RETRY_DELAY_SECONDS)
-            else:
-                print(settings.t("all_attempts_failed"))
+    error_log_template = settings.t("telegram_sending_error", e="{e}")
+
+    response, _ = http_client.make_request(
+        "POST", url, error_log_template, json=payload
+    )
+
+    if response:
+        print(settings.t("telegram_notification_sent"))
+    else:
+        print(settings.t("telegram_sending_error", e="All attempts failed."))
 
 
 def report_findings(problem_reports: list[str], stats: dict):
@@ -54,7 +44,7 @@ def report_findings(problem_reports: list[str], stats: dict):
     send_telegram_alert(alert_message)
 
 
-def send_daily_report(stats: dict, problematic_members: list):
+def send_daily_report(stats: dict, problematic_members: list[ProblematicMember]):
     """Отправляет ежедневный отчет о работе скрипта и статистике."""
     report_date = stats.get("last_report_date", str(date.today()))
     last_check = stats.get("last_check_datetime", "N/A")
@@ -71,8 +61,8 @@ def send_daily_report(stats: dict, problematic_members: list):
         for member in problematic_members:
             problem_details += settings.t(
                 "daily_report_problematic_member_line",
-                name=member["name"],
-                count=member["problems_count"],
+                name=member.name,
+                count=member.problems_count,
             )
         message += problem_details
 

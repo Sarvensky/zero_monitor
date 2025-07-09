@@ -4,45 +4,32 @@
 """
 
 import time
-import requests
 import settings
 import database_manager as db
 from send_to_chat import send_telegram_alert
+import http_client
 
 
 def get_members(token: str, network_id: str) -> list | None:
     """Получает список участников для одной сети ZeroTier с несколькими попытками."""
     url = f"{settings.API_URL}network/{network_id}/member"
     headers = {"Authorization": f"Bearer {token}"}
-    last_error = None
+    error_log_template = settings.t("error_getting_members", net_id=network_id, e="{e}")
 
-    for attempt in range(settings.API_RETRY_ATTEMPTS):
-        try:
-            response = requests.get(url=url, headers=headers, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            last_error = e
-            print(
-                f"{settings.t('attempt_info', attempt=attempt + 1, total=settings.API_RETRY_ATTEMPTS)} "
-                f"{settings.t('error_getting_members', net_id=network_id, e=e)}"
-            )
-            if attempt < settings.API_RETRY_ATTEMPTS - 1:
-                print(
-                    settings.t(
-                        "retry_in_seconds", delay=settings.API_RETRY_DELAY_SECONDS
-                    )
-                )
-                time.sleep(settings.API_RETRY_DELAY_SECONDS)
-            else:
-                print(settings.t("all_attempts_failed"))
-    # Отправляем уведомление только после того, как все попытки провалились
-    if last_error:
+    response, error = http_client.make_request(
+        "GET", url, error_log_template, headers=headers
+    )
+
+    if response:
+        return response.json()
+
+    # Если после всех попыток произошла ошибка, отправляем уведомление
+    if error:
         error_message = settings.t(
             "alert_failed_to_get_members",
             net_id=network_id,
             attempts=settings.API_RETRY_ATTEMPTS,
-            error=last_error,
+            error=error,
         )
         send_telegram_alert(error_message)
     return None
@@ -67,7 +54,7 @@ def get_all_members(networks: list[dict]) -> list[dict]:
         # Добавляем паузу между запросами к разным сетям, чтобы не превышать лимиты API.
         # Пауза не нужна после последнего запроса.
         if i < num_networks - 1:
-            time.sleep(1)
+            time.sleep(1)  # Небольшая задержка между запросами к разным сетям
     return all_members
 
 
@@ -78,40 +65,28 @@ def get_latest_zerotier_version() -> str:
     В случае ошибки пытается получить значение из БД, и только потом использует fallback.
     """
     url = "https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest"
-    last_error = None
+    error_log_template = settings.t("error_getting_latest_version", e="{e}")
 
-    for attempt in range(settings.API_RETRY_ATTEMPTS):
+    response, error = http_client.make_request("GET", url, error_log_template)
+
+    if response:
         try:
-            response = requests.get(url=url, timeout=10)
-            response.raise_for_status()
             data = response.json()
             # Теги на GitHub часто имеют префикс 'v', уберем его
             latest_version = data["tag_name"].lstrip("v")
             # При успехе сохраняем в БД
             db.save_latest_zt_version(latest_version)
             return latest_version
-        except (requests.RequestException, KeyError, ValueError) as e:
-            last_error = e
-            print(
-                f"{settings.t('attempt_info', attempt=attempt + 1, total=settings.API_RETRY_ATTEMPTS)} "
-                f"{settings.t('error_getting_latest_version', e=e)}"
-            )
-            if attempt < settings.API_RETRY_ATTEMPTS - 1:
-                print(
-                    settings.t(
-                        "retry_in_seconds", delay=settings.API_RETRY_DELAY_SECONDS
-                    )
-                )
-                time.sleep(settings.API_RETRY_DELAY_SECONDS)
-            else:
-                print(settings.t("all_attempts_failed"))
+        except (KeyError, ValueError) as e:
+            # Ошибка парсинга ответа, даже если запрос прошел успешно
+            error = e
 
-    # Отправляем уведомление только после того, как все попытки провалились
-    if last_error:
+    # Если после всех попыток произошла ошибка, отправляем уведомление
+    if error:
         error_message = settings.t(
             "alert_failed_to_get_latest_version",
             attempts=settings.API_RETRY_ATTEMPTS,
-            error=last_error,
+            error=error,
         )
         send_telegram_alert(error_message)
 
