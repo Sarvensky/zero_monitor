@@ -1,8 +1,10 @@
 """Модуль для централизованного выполнения HTTP-запросов с повторными попытками."""
 
 import time
+import random
 import requests
 import settings
+from exceptions import ApiClientError
 
 # Создаем один экземпляр сессии для переиспользования TCP-соединений.
 # Это повышает производительность, т.к. не нужно устанавливать новое
@@ -15,9 +17,10 @@ def make_request(
     url: str,
     error_log_template: str,
     **kwargs,
-) -> tuple[requests.Response | None, requests.RequestException | None]:
+) -> requests.Response:
     """
     Выполняет HTTP-запрос с несколькими попытками в случае сбоя.
+    Использует стратегию экспоненциальной задержки с джиттером.
 
     Args:
         method: HTTP-метод ('GET', 'POST', и т.д.).
@@ -26,7 +29,10 @@ def make_request(
         **kwargs: Дополнительные аргументы для requests (headers, json, timeout).
 
     Returns:
-        Кортеж (Response, None) в случае успеха, иначе (None, Exception).
+        Объект requests.Response в случае успеха.
+
+    Raises:
+        ApiClientError: Если запрос не удался после всех попыток.
     """
     last_error = None
     # Устанавливаем таймаут по умолчанию из настроек, если он не передан явно.
@@ -36,7 +42,7 @@ def make_request(
         try:
             response = _session.request(method, url, **kwargs)
             response.raise_for_status()
-            return response, None  # Успех
+            return response  # Успех
         except requests.RequestException as e:
             last_error = e
             print(
@@ -44,7 +50,14 @@ def make_request(
                 f"{error_log_template.format(e=e)}"
             )
             if attempt < settings.API_RETRY_ATTEMPTS - 1:
-                time.sleep(settings.API_RETRY_DELAY_SECONDS)
+                # Экспоненциальная задержка с джиттером для предотвращения "волн" нагрузки
+                backoff_time = settings.API_RETRY_DELAY_SECONDS * (2**attempt)
+                jitter = random.uniform(0, 1)
+                sleep_time = backoff_time + jitter
+                print(settings.t("retry_in_seconds", delay=round(sleep_time, 2)))
+                time.sleep(sleep_time)
 
-    print(settings.t("all_attempts_failed"))
-    return None, last_error  # Провал после всех попыток
+    # Формируем и выбрасываем кастомное исключение, если все попытки провалились
+    final_error_message = settings.t("all_attempts_failed_with_error", error=last_error)
+    print(final_error_message)
+    raise ApiClientError(final_error_message) from last_error

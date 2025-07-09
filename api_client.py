@@ -8,6 +8,7 @@ import settings
 import database_manager as db
 from send_to_chat import send_telegram_alert
 import http_client
+from exceptions import ApiClientError
 
 
 def get_members(token: str, network_id: str) -> list | None:
@@ -16,23 +17,21 @@ def get_members(token: str, network_id: str) -> list | None:
     headers = {"Authorization": f"Bearer {token}"}
     error_log_template = settings.t("error_getting_members", net_id=network_id, e="{e}")
 
-    response, error = http_client.make_request(
-        "GET", url, error_log_template, headers=headers
-    )
-
-    if response:
+    try:
+        response = http_client.make_request(
+            "GET", url, error_log_template, headers=headers
+        )
         return response.json()
-
-    # Если после всех попыток произошла ошибка, отправляем уведомление
-    if error:
+    except ApiClientError as e:
+        # Если после всех попыток произошла ошибка, отправляем уведомление
         error_message = settings.t(
             "alert_failed_to_get_members",
             net_id=network_id,
             attempts=settings.API_RETRY_ATTEMPTS,
-            error=error,
+            error=e,
         )
         send_telegram_alert(error_message)
-    return None
+        return None
 
 
 def get_all_members(networks: list[dict]) -> list[dict]:
@@ -67,9 +66,8 @@ def get_latest_zerotier_version() -> str:
     url = "https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest"
     error_log_template = settings.t("error_getting_latest_version", e="{e}")
 
-    response, error = http_client.make_request("GET", url, error_log_template)
-
-    if response:
+    try:
+        response = http_client.make_request("GET", url, error_log_template)
         try:
             data = response.json()
             # Теги на GitHub часто имеют префикс 'v', уберем его
@@ -77,18 +75,21 @@ def get_latest_zerotier_version() -> str:
             # При успехе сохраняем в БД
             db.save_latest_zt_version(latest_version)
             return latest_version
-        except (KeyError, ValueError) as e:
+        except (KeyError, ValueError) as parse_error:
             # Ошибка парсинга ответа, даже если запрос прошел успешно
-            error = e
-
-    # Если после всех попыток произошла ошибка, отправляем уведомление
-    if error:
-        error_message = settings.t(
-            "alert_failed_to_get_latest_version",
-            attempts=settings.API_RETRY_ATTEMPTS,
-            error=error,
+            # Создаем новое исключение, чтобы передать его дальше
+            raise ApiClientError(
+                f"Failed to parse GitHub API response: {parse_error}"
+            ) from parse_error
+    except ApiClientError as e:
+        # Если после всех попыток произошла ошибка, отправляем уведомление
+        send_telegram_alert(
+            settings.t(
+                "alert_failed_to_get_latest_version",
+                attempts=settings.API_RETRY_ATTEMPTS,
+                error=e,
+            )
         )
-        send_telegram_alert(error_message)
 
     # Если API недоступен, пытаемся взять версию из БД
     db_version = db.get_latest_zt_version_from_db()

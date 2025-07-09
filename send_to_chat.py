@@ -3,6 +3,7 @@
 from datetime import date
 import settings
 import http_client
+from exceptions import ApiClientError
 from models import ProblematicMember
 from utils import get_project_version
 
@@ -18,14 +19,12 @@ def send_telegram_alert(message: str) -> None:
 
     error_log_template = settings.t("telegram_sending_error", e="{e}")
 
-    response, _ = http_client.make_request(
-        "POST", url, error_log_template, json=payload
-    )
-
-    if response:
+    try:
+        http_client.make_request("POST", url, error_log_template, json=payload)
         print(settings.t("telegram_notification_sent"))
-    else:
-        print(settings.t("telegram_sending_error", e="All attempts failed."))
+    except ApiClientError as e:
+        # Теперь мы логируем настоящую причину сбоя, а не просто "все попытки провалились"
+        print(settings.t("telegram_sending_error", e=e))
 
 
 def report_findings(problem_reports: list[str], stats: dict):

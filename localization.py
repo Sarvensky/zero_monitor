@@ -12,6 +12,7 @@ STRINGS = {
         "fix_env_and_restart": "Пожалуйста, исправьте конфигурацию в файле .env и перезапустите скрипт.",
         "attempt_info": "Попытка {attempt}/{total}:",
         "retry_in_seconds": "Повторная попытка через {delay} сек...",
+        "all_attempts_failed_with_error": "Все попытки исчерпаны. Последняя ошибка: {error}",
         "all_attempts_failed": "Все попытки исчерпаны.",
         # settings.py
         "json_must_be_list": "JSON должен быть списком (массивом).",
@@ -103,6 +104,7 @@ STRINGS = {
         "fix_env_and_restart": "Please fix the configuration in the .env file and restart the script.",
         "attempt_info": "Attempt {attempt}/{total}:",
         "retry_in_seconds": "Retrying in {delay} sec...",
+        "all_attempts_failed_with_error": "All attempts have been exhausted. Last error: {error}",
         "all_attempts_failed": "All attempts have been exhausted.",
         # settings.py
         "json_must_be_list": "JSON must be a list (array).",
