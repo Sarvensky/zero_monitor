@@ -7,8 +7,7 @@ import time
 import settings
 import database_manager as db
 from send_to_chat import send_telegram_alert
-import http_client
-from exceptions import ApiClientError
+from http_client import ApiClientError, make_request
 
 
 def get_members(token: str, network_id: str) -> list | None:
@@ -18,9 +17,7 @@ def get_members(token: str, network_id: str) -> list | None:
     error_log_template = settings.t("error_getting_members", net_id=network_id, e="{e}")
 
     try:
-        response = http_client.make_request(
-            "GET", url, error_log_template, headers=headers
-        )
+        response = make_request("GET", url, error_log_template, headers=headers)
         return response.json()
     except ApiClientError as e:
         # Если после всех попыток произошла ошибка, отправляем уведомление
@@ -67,7 +64,7 @@ def get_latest_zerotier_version() -> str:
     error_log_template = settings.t("error_getting_latest_version", e="{e}")
 
     try:
-        response = http_client.make_request("GET", url, error_log_template)
+        response = make_request("GET", url, error_log_template)
         try:
             data = response.json()
             # Теги на GitHub часто имеют префикс 'v', уберем его

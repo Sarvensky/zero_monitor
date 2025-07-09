@@ -106,7 +106,15 @@ def run_check_cycle(state: AppStateManager) -> None:
     monitored_members = [m for m in all_members if m["nodeId"] in settings.MEMBER_IDS]
 
     for member in monitored_members:
-        member_reports = checker.process_member(member, latest_version, time_ms)
+        node_id = member["nodeId"]
+        # 1. Получаем предыдущее состояние из БД
+        previous_state = db.get_member_state(node_id)
+        # 2. Вызываем "чистую" функцию проверки, передавая ей состояние
+        new_state, member_reports = checker.process_member(
+            member, latest_version, time_ms, previous_state
+        )
+        # 3. Сохраняем новое состояние в БД
+        db.update_member_state(new_state)
         all_problem_reports.extend(member_reports)
 
     if all_problem_reports:

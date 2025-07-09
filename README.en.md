@@ -14,29 +14,24 @@ A script for active monitoring of node (computer) status in one or more ZeroTier
 - **Ping Check**: When a node is detected as offline, it performs an additional ICMP (ping) check to verify its IP address accessibility.
 - **Daily Reports**: Sends a summary report every day at midnight with the number of checks and incidents detected over the past day.
 - **Local Database**: Uses SQLite to store node states between checks, preventing false positives.
-- **API Failure Resilience**: Implemented retry logic for network requests to the ZeroTier and Telegram APIs.
 - **Anomaly Detection**: Smooths out rare, anomalous spikes in `lastSeen` data from the ZeroTier API.
+- **Language Support**: By default, Russian is used, but all messages are also translated into English. The language is specified in the settings.
 
-## How It Works
+## Requirements
 
-1.  **Initialization**: On startup, the script reads the configuration from the `.env` file, initializes the SQLite database, and sends a startup notification.
-2.  **Infinite Loop**: The script runs in an infinite loop with a configurable interval (`CHECK_INTERVAL_SECONDS`).
-3.  **Data Fetching**: In each cycle, it queries the ZeroTier API for a list of all members in the specified networks and the latest client version from GitHub.
-4.  **Node Analysis**: For each monitored node (`MEMBER_IDS`), the script:
-    - Compares its current state with the one saved in the local database.
-    - Checks the last activity time (`lastSeen`). If the node has been inactive for too long, a report is generated.
-    - Checks the client version. If the version is outdated, a report is generated.
-    - If an offline report is generated, an additional ping check is performed.
-5.  **Sending Reports**: If any problem reports were generated, they are combined into a single message and sent to Telegram.
-6.  **State Saving**: The new state of each node (online status, sent notifications) is saved to the database.
-7.  **Daily Summary**: Once a day, the script sends a summary report for the past day and resets the daily counters.
+- **Python 3.7+**. The project uses features (`dataclasses`, `datetime.fromisoformat`) that were introduced in this version.
+- **ZeroTier API Access**. A token generated in your ZeroTier account is required.
+- **Telegram Bot**. A bot token and a chat ID are needed to send notifications.
+
+> **Important note on ping checks:**
+> For the ICMP (ping) check to work correctly, the script must be run on a computer that is connected to the same ZeroTier network as the nodes being monitored.
 
 ## Installation and Setup
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/sarvensky/zero_monitor.git
+git clone https://github.com/Sarvensky/zero_monitor.git
 cd zero_monitor
 ```
 

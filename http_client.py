@@ -4,7 +4,11 @@ import time
 import random
 import requests
 import settings
-from exceptions import ApiClientError
+
+
+class ApiClientError(Exception):
+    """Исключение, которое выбрасывается, когда HTTP-клиент не может выполнить запрос после всех попыток."""
+
 
 # Создаем один экземпляр сессии для переиспользования TCP-соединений.
 # Это повышает производительность, т.к. не нужно устанавливать новое

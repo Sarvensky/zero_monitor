@@ -2,8 +2,7 @@
 
 from datetime import date
 import settings
-import http_client
-from exceptions import ApiClientError
+from http_client import ApiClientError, make_request
 from models import ProblematicMember
 
 
@@ -19,7 +18,7 @@ def send_telegram_alert(message: str) -> None:
     error_log_template = settings.t("telegram_sending_error", e="{e}")
 
     try:
-        http_client.make_request("POST", url, error_log_template, json=payload)
+        make_request("POST", url, error_log_template, json=payload)
         print(settings.t("telegram_notification_sent"))
     except ApiClientError as e:
         # Теперь мы логируем настоящую причину сбоя, а не просто "все попытки провалились"

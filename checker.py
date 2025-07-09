@@ -5,7 +5,6 @@
 import platform
 import subprocess
 import settings
-import database_manager as db
 from utils import get_seconds_since
 from models import MemberState, OnlineStatusResult
 
@@ -178,25 +177,27 @@ def check_member_online_status(
     )
 
 
-def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]:
+def process_member(
+    member: dict,
+    latest_version: str,
+    time_ms: int,
+    previous_state: MemberState | None,
+) -> tuple[MemberState, list[str]]:
     """
     Обрабатывает одного участника: проверяет состояние, сравнивает с предыдущим,
-    сохраняет результат в БД и возвращает отчеты о проблемах.
+    и возвращает новое состояние и отчеты о проблемах.
     """
     node_id = member["nodeId"]
     name = member.get("name", node_id)
     problem_reports = []
 
-    # Получаем предыдущее состояние или создаем новое, если участник не найден в БД
-    previous_state = db.get_member_state(node_id)
-    if previous_state is None:
-        previous_state = MemberState(node_id=node_id, name=name)
-
-    new_problems_count = previous_state.problems_count
+    # Используем предыдущее состояние или создаем новое, если участник не найден в БД
+    current_state = previous_state or MemberState(node_id=node_id, name=name)
+    new_problems_count = current_state.problems_count
 
     client_version = member.get("clientVersion", "N/A").lstrip("v")
     version_report, new_version_alert_sent = check_member_version(
-        name, client_version, latest_version, previous_state.version_alert_sent
+        name, client_version, latest_version, current_state.version_alert_sent
     )
     if version_report:
         problem_reports.append(version_report)
@@ -207,7 +208,7 @@ def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]
     ip_assignments = member.get("config", {}).get("ipAssignments", [])
 
     online_status = check_member_online_status(
-        name, last_online_ts, time_ms, previous_state, ip_assignments
+        name, last_online_ts, time_ms, current_state, ip_assignments
     )
 
     if online_status.report:
@@ -237,6 +238,5 @@ def process_member(member: dict, latest_version: str, time_ms: int) -> list[str]
         online_status.seconds_ago,
         new_problems_count,
     )
-    db.update_member_state(new_state)
 
-    return problem_reports
+    return new_state, problem_reports
