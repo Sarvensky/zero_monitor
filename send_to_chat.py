@@ -37,28 +37,38 @@ def report_findings(problem_reports: list[str]):
     send_telegram_alert(alert_message)
 
 
-def send_daily_report(stats: dict, problematic_members: list[ProblematicMember]):
-    """Отправляет ежедневный отчет о работе скрипта и статистике."""
+def _build_daily_report_message(
+    stats: dict, problematic_members: list[ProblematicMember]
+) -> str:
+    """Собирает текст для ежедневного отчета."""
     report_date = stats.get("last_report_date", str(date.today()))
     last_check = stats.get("last_check_datetime", "N/A")
-    message = (
-        f"{settings.t('daily_report_title', date=report_date)}"
-        f"{settings.t('daily_report_status_ok')}"
-        f"{settings.t('daily_report_checks', checks=stats.get('checks_today', 0))}"
-        f"{settings.t('daily_report_incidents', problems=stats.get('problems_today', 0))}"
-        f"{settings.t('daily_report_last_check', last_check=last_check)}"
-    )
+
+    # Собираем отчет по частям для лучшей читаемости
+    report_parts = [
+        settings.t("daily_report_title", date=report_date),
+        settings.t("daily_report_status_ok"),
+        settings.t("daily_report_checks", checks=stats.get("checks_today", 0)),
+        settings.t("daily_report_incidents", problems=stats.get("problems_today", 0)),
+        settings.t("daily_report_last_check", last_check=last_check),
+    ]
 
     if problematic_members:
-        problem_details = settings.t("daily_report_problematic_members_header")
+        report_parts.append(settings.t("daily_report_problematic_members_header"))
         for member in problematic_members:
-            problem_details += settings.t(
-                "daily_report_problematic_member_line",
-                name=member.name,
-                count=member.problems_count,
+            report_parts.append(
+                settings.t(
+                    "daily_report_problematic_member_line",
+                    name=member.name,
+                    count=member.problems_count,
+                )
             )
-        message += problem_details
+    return "".join(report_parts)
 
+
+def send_daily_report(stats: dict, problematic_members: list[ProblematicMember]):
+    """Отправляет ежедневный отчет о работе скрипта и статистике."""
+    message = _build_daily_report_message(stats, problematic_members)
     print(f"\n{settings.t('sending_daily_report')}")
     print(message)
     send_telegram_alert(message)
