@@ -27,14 +27,8 @@ def send_telegram_alert(message: str) -> None:
         print(settings.t("telegram_sending_error", e=e))
 
 
-def report_findings(problem_reports: list[str], stats: dict):
-    """
-    Формирует и отправляет отчет о проблемах, если они есть,
-    и обновляет статистику.
-    """
-    # Увеличиваем счетчик проблем на количество новых инцидентов
-    stats["problems_today"] += len(problem_reports)
-
+def report_findings(problem_reports: list[str]):
+    """Формирует и отправляет отчет о проблемах, если они есть."""
     print(f"\n{settings.t('problems_detected_header')}")
     alert_message = settings.t("problems_report_header") + "\n".join(problem_reports)
     print(alert_message)
