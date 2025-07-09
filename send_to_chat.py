@@ -5,7 +5,6 @@ import settings
 import http_client
 from exceptions import ApiClientError
 from models import ProblematicMember
-from utils import get_project_version
 
 
 def send_telegram_alert(message: str) -> None:
@@ -76,6 +75,6 @@ def send_daily_report(stats: dict, problematic_members: list[ProblematicMember])
 
 def send_startup_notification():
     """Отправляет уведомление о запуске скрипта."""
-    message = settings.t("startup_notification", version=get_project_version())
+    message = settings.t("startup_notification", version=settings.PROJECT_VERSION)
     print("\n" + message)
     send_telegram_alert(message)
