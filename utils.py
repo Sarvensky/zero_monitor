@@ -13,8 +13,18 @@ def exit_with_error(message: str, t: Callable) -> NoReturn:
     """Выводит сообщение о критической ошибке и завершает работу скрипта."""
     print(f"\n{t('critical_error', message=message)}")
     print(t("fix_env_and_restart"))
+    # Пауза для того, чтобы пользователь успел прочитать ошибку в консоли,
+    # которая может автоматически закрыться после завершения скрипта.
     time.sleep(15)
     sys.exit(1)
+
+
+def _get_required_env(var_name: str, error_key: str, t: Callable) -> str:
+    """Получает обязательную переменную окружения или завершает работу, если она отсутствует."""
+    value = os.getenv(var_name)
+    if not value:
+        exit_with_error(t(error_key), t)
+    return value
 
 
 def get_project_version(fallback: str) -> str:
@@ -44,10 +54,9 @@ def get_project_version(fallback: str) -> str:
 
 def load_zt_networks(t: Callable) -> list[dict]:
     """Загружает и валидирует сети ZeroTier из переменной окружения."""
-    networks_json = os.getenv("ZEROTIER_NETWORKS_JSON")
-    if not networks_json:
-        exit_with_error(t("zt_networks_json_not_found"), t)
-
+    networks_json = _get_required_env(
+        "ZEROTIER_NETWORKS_JSON", "zt_networks_json_not_found", t
+    )
     try:
         networks = json.loads(networks_json)
         if not isinstance(networks, list):
@@ -67,9 +76,7 @@ def load_zt_networks(t: Callable) -> list[dict]:
 
 def load_member_ids(t: Callable) -> list[str]:
     """Загружает ID участников из переменной окружения."""
-    member_ids_csv = os.getenv("MEMBER_IDS_CSV")
-    if not member_ids_csv:
-        exit_with_error(t("member_ids_csv_not_found"), t)
+    member_ids_csv = _get_required_env("MEMBER_IDS_CSV", "member_ids_csv_not_found", t)
     return [item.strip() for item in member_ids_csv.split(",")]
 
 
@@ -85,19 +92,6 @@ def load_check_interval(t: Callable) -> int:
     except (ValueError, TypeError):
         print(t("invalid_interval_format"))
         return default_interval
-
-
-def load_offline_thresholds(t: Callable) -> dict:
-    """Определяет и валидирует пороги для определения офлайн-статуса."""
-    thresholds = {
-        "1h": {"seconds": 3600, "message_key": "offline_level3_message", "level": 3},
-        "15m": {"seconds": 900, "message_key": "offline_level2_message", "level": 2},
-        "5m": {"seconds": 300, "message_key": "offline_level1_message", "level": 1},
-    }
-    if "5m" not in thresholds:
-        # Эта проверка больше для целостности, т.к. словарь определен здесь же.
-        exit_with_error(t("offline_threshold_5m_missing"), t)
-    return thresholds
 
 
 def now_datetime() -> str:

@@ -45,8 +45,19 @@ DB_FILE = "monitor_state.db"  # Файл базы данных SQLite
 # Это нужно для сглаживания редких выбросов в ответах API ZeroTier.
 LAST_SEEN_ANOMALY_THRESHOLD_SECONDS = 200
 
-# Загрузка и валидация порогов для определения офлайн-статуса
-OFFLINE_THRESHOLDS = utils.load_offline_thresholds(t)
+# Пороги для определения офлайн-статуса.
+# Ключи - для удобства, level - для сравнения, message_key - для отчета.
+OFFLINE_THRESHOLDS = {
+    "1h": {"seconds": 3600, "message_key": "offline_level3_message", "level": 3},
+    "15m": {"seconds": 900, "message_key": "offline_level2_message", "level": 2},
+    "5m": {"seconds": 300, "message_key": "offline_level1_message", "level": 1},
+}
+
+# Валидация: обязательное наличие порога '5m', так как он используется
+# для определения статуса "онлайн" и сброса алертов.
+if "5m" not in OFFLINE_THRESHOLDS:
+    # Эта проверка больше для целостности, но важна для логики работы.
+    utils.exit_with_error(t("offline_threshold_5m_missing"), t)
 
 # Порог, после которого устройство считается онлайн (в секундах)
 ONLINE_THRESHOLD_SECONDS = OFFLINE_THRESHOLDS["5m"]["seconds"]
