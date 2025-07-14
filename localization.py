@@ -87,6 +87,7 @@ STRINGS = {
         "daily_report_problematic_member_line": "\n  - {name}: {count} инцидентов",
         "sending_daily_report": "--- Отправка ежедневного отчета ---",
         "startup_notification": "🚀 Мониторинг ZeroTier (v{version}) успешно запущен.",
+        "stop_notification": "🚧 Мониторинг ZeroTier остановлен",
         # main.py
         "current_datetime": "Дата и время сейчас: {check_time_str}",
         "latest_zt_version": "Актуальная версия ZeroTier: {latest_version}",
@@ -97,6 +98,7 @@ STRINGS = {
         "new_day_started": "--- Наступил новый день ({current_date}). Отправка отчета за {last_report_date}. ---",
         "unexpected_error": "--- Произошла непредвиденная ошибка: {e} ---",
         "pause_before_next_check": "--- Пауза {minutes} минут до следующей проверки ---",
+        "script_stopped_by_user": "\nСкрипт остановлен пользователем.",
     },
     "en": {
         # Common
@@ -178,6 +180,7 @@ STRINGS = {
         "daily_report_problematic_member_line": "\n  - {name}: {count} incidents",
         "sending_daily_report": "--- Sending daily report ---",
         "startup_notification": "🚀 ZeroTier Monitor (v{version}) started successfully.",
+        "stop_notification": "🚧 *ZeroTier Monitor stopped*",
         # main.py
         "current_datetime": "Current date and time: {check_time_str}",
         "latest_zt_version": "Latest ZeroTier version: {latest_version}",
@@ -188,6 +191,7 @@ STRINGS = {
         "new_day_started": "--- New day has started ({current_date}). Sending report for {last_report_date}. ---",
         "unexpected_error": "--- An unexpected error occurred: {e} ---",
         "pause_before_next_check": "--- Pausing for {minutes} minutes until the next check ---",
+        "script_stopped_by_user": "\nScript stopped by user.",
     },
 }
 

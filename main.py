@@ -11,6 +11,7 @@ from send_to_chat import (
     report_findings,
     send_daily_report,
     send_startup_notification,
+    send_exit_notification,
 )
 from utils import now_datetime
 
@@ -132,21 +133,27 @@ def start_monitoring():
     state = AppStateManager()
 
     while True:
-        state.handle_daily_rollover()
-
         try:
+            state.handle_daily_rollover()
             run_check_cycle(state)
+
+            # Сохраняем обновленную статистику в БД после каждой проверки
+            state.save()
+            print(
+                f"\n{settings.t('pause_before_next_check', minutes=settings.CHECK_INTERVAL_SECONDS // 60)}"
+            )
+            time.sleep(settings.CHECK_INTERVAL_SECONDS)
+        except KeyboardInterrupt:
+            send_exit_notification()
+            print(settings.t("script_stopped_by_user"))
+            break
         # pylint: disable=broad-exception-caught
         except Exception as e:
             # Логируем непредвиденную ошибку, чтобы скрипт не падал
             print(f"\n{settings.t('unexpected_error', e=e)}")
-
-        # Сохраняем обновленную статистику в БД после каждой проверки
-        state.save()
-        print(
-            f"\n{settings.t('pause_before_next_check', minutes=settings.CHECK_INTERVAL_SECONDS // 60)}"
-        )
-        time.sleep(settings.CHECK_INTERVAL_SECONDS)
+            # Добавляем паузу после ошибки, чтобы избежать "горячего" цикла
+            # в случае повторяющейся проблемы.
+            time.sleep(settings.CHECK_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

@@ -77,3 +77,10 @@ def send_startup_notification():
     message = settings.t("startup_notification", version=settings.PROJECT_VERSION)
     print("\n" + message)
     send_telegram_alert(message)
+
+
+def send_exit_notification() -> None:
+    """Отправляет уведомление об остановке скрипта."""
+    message = settings.t("stop_notification")
+    print("\n" + message)
+    send_telegram_alert(message)
